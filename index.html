@@ -602,14 +602,38 @@ function App(){
     "auth/network-request-failed":"Rete non raggiungibile",
     "auth/invalid-api-key":"apiKey errata nel file",
     "auth/configuration-not-found":"Authentication non inizializzato nella console",
+    "auth/web-storage-unsupported":"Disattiva la navigazione privata per il login",
+    "auth/operation-not-supported-in-this-environment":"Apri il sito in Safari o Chrome, non dentro un'altra app",
   };
+
+  // su telefono (e nell'app aggiunta alla home) Google blocca il popup: si va di redirect
+  const isMobile=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone===true;
+
+  // al ritorno dal redirect raccolgo l'esito
+  useEffect(()=>{
+    if(!FB) return;
+    FB.auth.getRedirectResult()
+      .then(res=>{ if(res&&res.user) flash("Collegato — i salvati ti seguono"); })
+      .catch(e=>{ console.error("[auth-redirect]",e.code,e.message); flash(AUTH_ERR[e.code]||("Errore: "+(e.code||e.message))); });
+  },[]); // eslint-disable-line
+
   const signIn=async()=>{
     if(!FB){ flash("Firebase non configurato"); return; }
-    try{ await FB.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); flash("Collegato — i salvati ti seguono"); }
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:"select_account"});
+
+    if(isMobile()){
+      try{ await FB.auth.signInWithRedirect(provider); }
+      catch(e){ console.error("[auth]",e.code,e.message); flash(AUTH_ERR[e.code]||("Errore: "+(e.code||e.message))); }
+      return;
+    }
+    try{ await FB.auth.signInWithPopup(provider); flash("Collegato — i salvati ti seguono"); }
     catch(e){
       console.error("[auth]",e.code,e.message,e);
-      if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment"){
-        FB.auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); return;
+      if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment"||e.code==="auth/popup-closed-by-user"){
+        try{ await FB.auth.signInWithRedirect(provider); return; }catch(e2){}
       }
       flash(AUTH_ERR[e.code] || ("Errore: "+(e.code||e.message)));
     }
