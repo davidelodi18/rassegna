@@ -146,6 +146,13 @@
   .panel .foot button{flex:1;border-radius:6px;padding:11px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.05em;border:1px solid var(--ink);background:none;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:6px;}
   .panel .foot button.go{background:var(--stamp);border-color:var(--stamp);color:#fff;}
 
+  .cat{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 18px;}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+    border:1px solid var(--rule);border-radius:999px;padding:6px 12px;background:none;color:var(--muted);transition:.14s;}
+  .chip:hover{border-color:var(--ink);color:var(--ink);}
+  .chip.on{background:var(--stamp);border-color:var(--stamp);color:#fff;}
+  .setlbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--rule);padding-bottom:6px;margin:22px 0 10px;}
+  .setlbl:first-of-type{margin-top:0;}
   .set textarea{width:100%;font-family:'IBM Plex Mono',monospace;font-size:12.5px;border:1px solid var(--rule);border-radius:6px;padding:9px 11px;background:var(--paper);color:var(--ink);resize:vertical;min-height:240px;line-height:1.5;}
   .set textarea:focus{outline:none;border-color:var(--ink);}
   .set .hint{font-size:12px;color:var(--faint);margin:0 0 8px;line-height:1.45;}
@@ -236,12 +243,43 @@ const DEFAULT_FEEDS={
     "https://techcrunch.com/feed/",
     "https://hnrss.org/frontpage",
   ]},
+  cultura:{ label:"Cultura", urls:[
+    "https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml",
+    "https://www.ilpost.it/cultura/feed/",
+    "https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml",
+  ]},
+  scienza:{ label:"Scienza", urls:[
+    "https://www.ansa.it/canale_scienza_tecnica/notizie/scienza_tecnica_rss.xml",
+    "https://www.ilpost.it/scienza/feed/",
+    "https://www.sciencedaily.com/rss/top/science.xml",
+  ]},
   italia:{ label:"Italia", urls:[
     "https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml",
     "https://www.ilpost.it/feed/",
     "https://www.repubblica.it/rss/homepage/rss2.0.xml",
   ]},
 };
+
+/* Macroaree pronte: si attivano/disattivano da ⚙ */
+const CATALOG=[
+  {id:"economia",label:"Economia",urls:["https://www.ansa.it/sito/notizie/economia/economia_rss.xml","https://www.repubblica.it/rss/economia/rss2.0.xml","https://www.ilpost.it/economia/feed/"]},
+  {id:"geopolitica",label:"Geopolitica",urls:["https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml","https://www.repubblica.it/rss/esteri/rss2.0.xml","https://www.ilpost.it/mondo/feed/"]},
+  {id:"sport",label:"Sport",urls:["https://www.ansa.it/sito/notizie/sport/sport_rss.xml","https://www.ansa.it/sito/notizie/sport/calcio/calcio_rss.xml","https://www.ilpost.it/sport/feed/"]},
+  {id:"tech",label:"Tech & AI",urls:["https://www.ansa.it/sito/notizie/tecnologia/tecnologia_rss.xml","https://www.theverge.com/rss/index.xml","https://techcrunch.com/feed/","https://hnrss.org/frontpage"]},
+  {id:"cultura",label:"Cultura",urls:["https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml","https://www.ilpost.it/cultura/feed/","https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml"]},
+  {id:"scienza",label:"Scienza",urls:["https://www.ansa.it/canale_scienza_tecnica/notizie/scienza_tecnica_rss.xml","https://www.ilpost.it/scienza/feed/","https://www.sciencedaily.com/rss/top/science.xml"]},
+  {id:"italia",label:"Italia",urls:["https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml","https://www.ilpost.it/feed/","https://www.repubblica.it/rss/homepage/rss2.0.xml"]},
+  {id:"libri",label:"Libri",urls:["https://www.ilpost.it/libri/feed/","https://www.ansa.it/sito/notizie/cultura/libri/libri_rss.xml"]},
+  {id:"cinema",label:"Cinema & TV",urls:["https://www.ansa.it/sito/notizie/cultura/cinema/cinema_rss.xml","https://www.ilpost.it/tv/feed/"]},
+  {id:"musica",label:"Musica",urls:["https://www.ilpost.it/musica/feed/","https://www.ansa.it/sito/notizie/cultura/musica/musica_rss.xml"]},
+  {id:"dach",label:"DACH",urls:["https://www.spiegel.de/wirtschaft/index.rss","https://www.tagesschau.de/index~rss2.xml","https://www.handelsblatt.com/contentexport/feed/schlagzeilen"]},
+  {id:"food",label:"Food Science",urls:["https://ilfattoalimentare.it/feed","https://www.sciencedaily.com/rss/health_medicine/food.xml"]},
+  {id:"emilia",label:"Emilia-Romagna",urls:["https://www.ansa.it/emiliaromagna/notizie/emiliaromagna_rss.xml"]},
+  {id:"motori",label:"Motori",urls:["https://www.ansa.it/canale_motori/notizie/motori_rss.xml"]},
+  {id:"salute",label:"Salute",urls:["https://www.ansa.it/canale_saluteebenessere/notizie/salute_benessere_rss.xml","https://www.ilpost.it/scienza/feed/"]},
+  {id:"ambiente",label:"Ambiente",urls:["https://www.ansa.it/canale_ambiente/notizie/ambiente_rss.xml","https://www.ilpost.it/ambiente/feed/"]},
+  {id:"mondo_en",label:"Mondo (EN)",urls:["https://feeds.bbci.co.uk/news/world/rss.xml","https://www.theguardian.com/world/rss"]},
+];
 
 /* ---------- utils ---------- */
 function stripHtml(h){const d=document.createElement("div");d.innerHTML=h||"";return (d.textContent||d.innerText||"").replace(/\s+/g," ").trim();}
@@ -671,23 +709,51 @@ function App(){
 }
 
 function Settings({feeds,onClose,onSave}){
-  const [txt,setTxt]=useState(()=>Object.entries(feeds).map(([id,g])=>`[${g.label}]\n`+g.urls.join("\n")).join("\n\n"));
-  const parse=()=>{
+  const toText=obj=>Object.entries(obj).map(([id,g])=>`[${g.label}]\n`+g.urls.join("\n")).join("\n\n");
+  const [txt,setTxt]=useState(()=>toText(feeds));
+
+  const parse=(t)=>{
     const out={};let cur=null;
-    txt.split("\n").forEach(line=>{const l=line.trim();if(!l)return;const m=l.match(/^\[(.+)\]$/);
+    (t||txt).split("\n").forEach(line=>{const l=line.trim();if(!l)return;const m=l.match(/^\[(.+)\]$/);
       if(m){const label=m[1].trim();const id=label.toLowerCase().replace(/[^a-z0-9]+/g,"").slice(0,20)||("t"+Object.keys(out).length);cur=id;out[id]={label,urls:[]};}
       else if(cur&&/^https?:\/\//.test(l)){out[cur].urls.push(l);}});
-    return Object.keys(out).length?out:feeds;
+    return out;
   };
+  const current=parse(txt);
+  const activeLabels=new Set(Object.values(current).map(g=>g.label.toLowerCase()));
+  const isOn=c=>activeLabels.has(c.label.toLowerCase());
+
+  const toggle=(c)=>{
+    if(isOn(c)){
+      const next={}; Object.entries(current).forEach(([id,g])=>{ if(g.label.toLowerCase()!==c.label.toLowerCase()) next[id]=g; });
+      setTxt(toText(next));
+    } else {
+      setTxt(t=>(t.trim()?t.trim()+"\n\n":"")+`[${c.label}]\n`+c.urls.join("\n"));
+    }
+  };
+
+  const save=()=>{ const o=parse(txt); onSave(Object.keys(o).length?o:feeds); };
+
   return (
     <>
       <div className="backdrop" onClick={onClose}></div>
       <div className="panel">
         <header><div><div className="lbl">Impostazioni</div><h3>Sezioni e fonti</h3></div><button className="x" onClick={onClose}>×</button></header>
         <div className="content set">
-          <p className="hint">L'ordine qui sotto è l'ordine delle sezioni in alto. Una sezione per <code>[Nome]</code>, poi un URL RSS per riga.</p>
+          <div className="setlbl">Macroaree</div>
+          <p className="hint">Clicca per aggiungere o togliere. Quelle accese finiscono nella barra in alto.</p>
+          <div className="cat">
+            {CATALOG.map(c=>(
+              <button key={c.id} className={"chip"+(isOn(c)?" on":"")} onClick={()=>toggle(c)}>
+                {isOn(c)?"✓ ":"+ "}{c.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="setlbl">Fonti (avanzato)</div>
+          <p className="hint">L'ordine qui sotto è l'ordine delle sezioni. Una sezione per <code>[Nome]</code>, poi un URL RSS per riga. Puoi crearne di tue.</p>
           <textarea value={txt} onChange={e=>setTxt(e.target.value)} spellCheck="false"></textarea>
-          <button className="save" onClick={()=>onSave(parse())}>Salva e aggiorna</button>
+          <button className="save" onClick={save}>Salva e aggiorna</button>
         </div>
       </div>
     </>
