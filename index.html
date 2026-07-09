@@ -247,15 +247,25 @@ if (FIREBASE_CONFIG.apiKey) {
 <script type="text/babel">
 const {useState,useEffect,useMemo,useCallback,useRef} = React;
 
-const PROXY="https://api.allorigins.win/get?url=";
-const PROXY_RAW="https://api.allorigins.win/raw?url=";
-/* se uno strozza o blocca, si passa al successivo */
+/* ============================================================
+   PROXY. Se hai un tuo Cloudflare Worker (vedi WORKER.md),
+   incolla qui il suo indirizzo: diventa il primo della lista
+   e i feed smettono di dipendere da servizi pubblici.
+   Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
+   ============================================================ */
+const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
+
 const PROXIES=[
+  ...(MY_PROXY?[u=>MY_PROXY+encodeURIComponent(u)]:[]),
+  u=>"https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(u),
   u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
   u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
-  u=>"https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(u),
+  u=>"https://api.cors.lol/?url="+encodeURIComponent(u),
+  u=>"https://whateverorigin.org/get?url="+encodeURIComponent(u),
   u=>"https://api.allorigins.win/get?url="+encodeURIComponent(u),
 ];
+const PROXY_PICK="rassegna_proxy_ok";
+
 const CLAUDE_URL="https://claude.ai/new";
 const LS={feeds:"rassegna_feeds_v2", read:"rassegna_read", saved:"rassegna_saved", theme:"rassegna_theme", cache:"rassegna_cache", widgets:"rassegna_widgets"};
 const CACHE_TTL=10*60*1000;   // 10 minuti: sotto questa soglia non ricarico nulla
@@ -346,24 +356,48 @@ async function withTimeout(promise,ms,ctrl){
   let t; const timeout=new Promise((_,rej)=>{t=setTimeout(()=>{ctrl&&ctrl.abort();rej(new Error("timeout"));},ms);});
   try{ return await Promise.race([promise,timeout]); } finally { clearTimeout(t); }
 }
-/* prova i proxy in ordine finché uno risponde */
-async function proxyGet(url,ms=9000){
+/* prova i proxy partendo da quello che ha funzionato l'ultima volta */
+function proxyOrder(){
+  let start=0;
+  try{ const i=parseInt(localStorage.getItem(PROXY_PICK)); if(i>=0&&i<PROXIES.length) start=i; }catch(e){}
+  const idx=PROXIES.map((_,i)=>i);
+  return [...idx.slice(start),...idx.slice(0,start)];
+}
+async function proxyGet(url,ms=8000){
   let lastErr=null;
-  for(let i=0;i<PROXIES.length;i++){
+  for(const i of proxyOrder()){
     const ctrl=new AbortController();
     try{
       const r=await withTimeout(fetch(PROXIES[i](url),{signal:ctrl.signal}),ms,ctrl);
       if(!r.ok){ lastErr=new Error("HTTP "+r.status); continue; }
-      const t=await r.text();
+      let t=await r.text();
       if(!t||t.length<60){ lastErr=new Error("vuoto"); continue; }
-      // l'endpoint /get impacchetta dentro JSON
-      if(t.trim().startsWith("{") && t.includes('"contents"')){
-        try{ const j=JSON.parse(t); if(j.contents) return j.contents; }catch(e){}
+      // pagina di blocco / captcha travestita da risposta valida
+      if(/^\s*<!doctype html/i.test(t) && !/<rss|<feed|<channel/i.test(t)){
+        lastErr=new Error("bloccato dalla testata"); continue;
       }
+      // gli endpoint tipo /get impacchettano dentro JSON
+      if(t.trim().startsWith("{") && t.includes('"contents"')){
+        try{ const j=JSON.parse(t); if(j.contents) t=j.contents; else {lastErr=new Error("json vuoto"); continue;} }catch(e){ lastErr=e; continue; }
+      }
+      try{ localStorage.setItem(PROXY_PICK,String(i)); }catch(e){}
       return t;
     }catch(e){ lastErr=e; }
   }
   throw lastErr||new Error("tutti i proxy ko");
+}
+async function testProxies(){
+  const target="https://www.ilpost.it/feed/";
+  const out=[];
+  for(let i=0;i<PROXIES.length;i++){
+    const t0=Date.now(); const ctrl=new AbortController();
+    try{
+      const r=await withTimeout(fetch(PROXIES[i](target),{signal:ctrl.signal}),6000,ctrl);
+      const txt=await r.text();
+      out.push({i,ok:r.ok&&txt.length>200,ms:Date.now()-t0,name:PROXIES[i]("X").split("/")[2]});
+    }catch(e){ out.push({i,ok:false,ms:Date.now()-t0,name:PROXIES[i]("X").split("/")[2]}); }
+  }
+  return out;
 }
 
 /* ---- widget: dati ---- */
@@ -676,7 +710,11 @@ function App(){
         const j=jobs[cursor++];
         let done=false;
         for(let attempt=0;attempt<2&&!done;attempt++){
-          try{ all.push(...parseFeed(await proxyGet(j.u, attempt===0?7000:11000), j.tid)); done=true; schedule(); }
+          try{
+            const items=parseFeed(await proxyGet(j.u, attempt===0?7000:11000), j.tid);
+            if(!items.length) throw new Error("nessun articolo");
+            all.push(...items); done=true; schedule();
+          }
           catch(e){ if(attempt===0) await new Promise(r=>setTimeout(r,400)); }
         }
         if(!done) fails.push(j.u);
@@ -973,6 +1011,9 @@ function Settings({feeds,widgets,onClose,onSave}){
   const toText=obj=>Object.entries(obj).map(([id,g])=>`[${g.label}]\n`+g.urls.join("\n")).join("\n\n");
   const [txt,setTxt]=useState(()=>toText(feeds));
   const [wtxt,setWtxt]=useState(()=>widgetsToText(widgets));
+  const [testing,setTesting]=useState(false);
+  const [res,setRes]=useState(null);
+  const runTest=async()=>{ setTesting(true); setRes(null); try{ setRes(await testProxies()); }catch(e){} setTesting(false); };
 
   const parse=(t)=>{
     const out={};let cur=null;
@@ -1011,6 +1052,16 @@ function Settings({feeds,widgets,onClose,onSave}){
               </button>
             ))}
           </div>
+
+          <div className="setlbl">Diagnostica</div>
+          <p className="hint">Se vedi "feed ko", i proxy pubblici stanno rifiutando le richieste. Prova quali rispondono adesso.</p>
+          <button className="ib" style={{width:"100%",justifyContent:"center",padding:"9px"}} disabled={testing} onClick={runTest}>
+            {testing?"Provo…":"Testa i proxy"}
+          </button>
+          {res && <div className="hint" style={{marginTop:10}}>
+            {res.map(r=>(<div key={r.i}>{r.ok?"✅":"❌"} {r.name} <span style={{opacity:.6}}>({r.ms}ms)</span></div>))}
+            <div style={{marginTop:8}}>Se sono tutti ❌, monta il tuo proxy (WORKER.md): è gratis e definitivo.</div>
+          </div>}
 
           <div className="setlbl">Nastro in alto</div>
           <p className="hint">Una scheda per riga: <code>quote SIMBOLO Etichetta</code> · <code>topic Argomento</code> · <code>weather Città</code>.<br/>
