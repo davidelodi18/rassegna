@@ -96,6 +96,25 @@
   .colitem h2{font-weight:600;font-size:18px;line-height:1.2;}
   .colitem .snip{font-size:13px;}
 
+
+  /* ---- immagini ---- */
+  .figure{position:relative;overflow:hidden;background:var(--rule);border-radius:2px;}
+  .figure img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .5s cubic-bezier(.2,.7,.2,1),filter .35s ease;}
+  .figure:hover img{transform:scale(1.035);}
+  html[data-theme="night"] .figure img{filter:brightness(.86) saturate(.92);}
+  html[data-theme="night"] .figure:hover img{filter:brightness(1) saturate(1);}
+  .read .figure img{filter:grayscale(1) opacity(.55);}
+
+  .lead .figure{aspect-ratio:16/9;margin-bottom:16px;}
+  .lead .figure::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.07);}
+
+  .colitem{display:flex;gap:14px;align-items:flex-start;}
+  .colitem .txt{flex:1;min-width:0;}
+  .colitem .figure{flex:0 0 84px;width:84px;height:84px;margin-top:2px;}
+  .colitem.nopic{display:block;}
+
+  .saveditem .figure{flex:0 0 104px;width:104px;height:104px;}
+
   .secview .top{grid-template-columns:1fr;}
   .secview .lead{border-right:none;padding-right:0;}
 
@@ -238,6 +257,27 @@ async function proxyGet(url){
   const r=await fetch(PROXY+encodeURIComponent(url)); if(!r.ok) throw new Error("HTTP "+r.status);
   const j=await r.json(); if(!j||j.contents==null) throw new Error("empty"); return j.contents;
 }
+function pickImage(it, desc){
+  const tag=n=>it.getElementsByTagName(n);
+  // media:content / media:thumbnail (anche senza prefisso)
+  for(const n of ["media:content","media:thumbnail","content","thumbnail"]){
+    const els=tag(n);
+    for(const el of els){
+      const u=el.getAttribute&&el.getAttribute("url");
+      const type=el.getAttribute&&(el.getAttribute("type")||el.getAttribute("medium"));
+      if(u && (!type || /image/i.test(type))) return u;
+    }
+  }
+  // enclosure
+  for(const el of tag("enclosure")){
+    const u=el.getAttribute("url"), t=el.getAttribute("type")||"";
+    if(u && (/image/i.test(t) || /\.(jpe?g|png|webp|avif)(\?|$)/i.test(u))) return u;
+  }
+  // primo <img> dentro description/content
+  const m=(desc||"").match(/<img[^>]+src=["']([^"']+)["']/i);
+  if(m) return m[1];
+  return null;
+}
 function parseFeed(xml,topic){
   const doc=new DOMParser().parseFromString(xml,"text/xml");
   let items=[...doc.querySelectorAll("item")]; let atom=false;
@@ -246,10 +286,12 @@ function parseFeed(xml,topic){
   return items.map(it=>{
     const title=stripHtml(it.querySelector("title")?.textContent||"");
     let link=""; if(atom){const ls=[...it.querySelectorAll("link")];link=(ls.find(x=>x.getAttribute("rel")==="alternate")||ls[0])?.getAttribute("href")||"";}else{link=it.querySelector("link")?.textContent||"";}
-    const desc=it.querySelector("description")?.textContent||it.querySelector("summary")?.textContent||it.querySelector("content")?.textContent||"";
+    const rawDesc=it.querySelector("description")?.textContent||it.querySelector("summary")?.textContent||it.querySelector("content")?.textContent||"";
     const ds=it.querySelector("pubDate")?.textContent||it.querySelector("updated")?.textContent||it.querySelector("published")?.textContent||"";
     let src=chan; try{if(!src&&link)src=new URL(link.trim()).hostname.replace("www.","");}catch(e){}
-    return {title,link:(link||"").trim(),snippet:stripHtml(desc).slice(0,280),date:ds?new Date(ds):null,source:src,topic};
+    let img=null; try{ img=pickImage(it,rawDesc); }catch(e){}
+    if(img && img.startsWith("http://")) img="https://"+img.slice(7);
+    return {title,link:(link||"").trim(),snippet:stripHtml(rawDesc).slice(0,280),date:ds?new Date(ds):null,source:src,topic,img};
   }).filter(a=>a.title&&a.link);
 }
 async function fetchArticleText(url){
@@ -379,8 +421,8 @@ function App(){
   const persistSaved=arr=>{setSaved(arr);localStorage.setItem(LS.saved,JSON.stringify(arr));};
   const toggleSave=a=>{
     if(isSaved(a.link)){ persistSaved(saved.filter(x=>x.link!==a.link)); flash("Rimosso da Leggi dopo"); }
-    else{ const {title,link,snippet,source,topic}=a;
-      persistSaved([{title,link,snippet:snippet||"",source:source||"",topic:topic||"",savedAt:Date.now(),date:a.date?new Date(a.date).toISOString():null},...saved]);
+    else{ const {title,link,snippet,source,topic,img}=a;
+      persistSaved([{title,link,snippet:snippet||"",source:source||"",topic:topic||"",img:img||null,savedAt:Date.now(),date:a.date?new Date(a.date).toISOString():null},...saved]);
       flash("Salvato in Leggi dopo"); }
   };
   const clearSaved=()=>{ if(confirm("Svuotare la lista Leggi dopo?")) persistSaved([]); };
@@ -403,6 +445,15 @@ function App(){
   const recopy=async()=>{if(panel){const ok=await copyText(panel.text);flash(ok?"Ricopiato":"Copia manuale");}};
 
   /* ---------- pezzi UI ---------- */
+  const Figure=({a,cls=""})=>{
+    const [ok,setOk]=useState(true);
+    if(!a.img||!ok) return null;
+    return (
+      <a className={"figure "+cls} href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>
+        <img src={a.img} alt="" loading="lazy" referrerPolicy="no-referrer" onError={()=>setOk(false)}/>
+      </a>
+    );
+  };
   const Meta=({a})=>(
     <div className="meta">
       <span style={{color:"var(--stamp)"}}>{a.source||feeds[a.topic]?.label}</span>
@@ -423,6 +474,7 @@ function App(){
   );
   const Lead=({a})=>(
     <div className={"lead"+(read.has(a.link)?" read":"")}>
+      <Figure a={a}/>
       <div className="kick">{feeds[a.topic]?.label||"Notizia"}</div>
       <h1 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h1>
       {a.snippet&&<p className="snip clamp4">{a.snippet}</p>}
@@ -436,11 +488,14 @@ function App(){
     </div>
   );
   const Col=({a})=>(
-    <div className={"colitem"+(read.has(a.link)?" read":"")}>
-      <div className="kick">{feeds[a.topic]?.label}</div>
-      <h2 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h2>
-      {a.snippet&&<p className="snip clamp2">{a.snippet}</p>}
-      <Meta a={a}/><Acts a={a}/>
+    <div className={"colitem"+(read.has(a.link)?" read":"")+(a.img?"":" nopic")}>
+      <div className="txt">
+        <div className="kick">{feeds[a.topic]?.label}</div>
+        <h2 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h2>
+        {a.snippet&&<p className="snip clamp2">{a.snippet}</p>}
+        <Meta a={a}/><Acts a={a}/>
+      </div>
+      <Figure a={a}/>
     </div>
   );
 
@@ -539,7 +594,8 @@ function App(){
                   {saved.map(a=>{
                     const art={...a,date:a.date?new Date(a.date):null};
                     return (
-                      <div className={"colitem"+(read.has(a.link)?" read":"")} key={a.link}>
+                      <div className={"colitem saveditem"+(read.has(a.link)?" read":"")+(a.img?"":" nopic")} key={a.link}>
+                        <div className="txt">
                         <div className="kick">{feeds[a.topic]?.label||"Salvato"}</div>
                         <h2 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h2>
                         {a.snippet&&<p className="snip clamp3">{a.snippet}</p>}
@@ -557,6 +613,8 @@ function App(){
                           <span className="sep">·</span>
                           <button onClick={()=>toggleSave(art)}>rimuovi</button>
                         </div>
+                        </div>
+                        <Figure a={art}/>
                       </div>
                     );
                   })}
