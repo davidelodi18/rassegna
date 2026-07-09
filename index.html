@@ -583,7 +583,8 @@ function App(){
       if(Array.isArray(d.widgets)&&d.widgets.length){ setWidgets(d.widgets); localStorage.setItem(LS.widgets,JSON.stringify(d.widgets)); }
       if(d.theme) setTheme(d.theme);
       setTimeout(()=>{remote.current=false;},0);
-    },err=>{ setSyncing(false); console.error(err); flash("Sync non riuscita"); });
+    },err=>{ setSyncing(false); console.error("[firestore]",err.code,err.message,err);
+      flash(err.code==="permission-denied"?"Regole Firestore da pubblicare":"Sync non riuscita: "+(err.code||"")); });
     return unsub;
   },[user]); // eslint-disable-line
 
@@ -604,10 +605,25 @@ function App(){
     return ()=>clearTimeout(t);
   },[saved,read,feeds,widgets,theme,user]); // eslint-disable-line
 
+  const AUTH_ERR={
+    "auth/unauthorized-domain":"Dominio non autorizzato: aggiungilo in Authentication → Settings",
+    "auth/operation-not-allowed":"Google non abilitato in Sign-in method",
+    "auth/popup-closed-by-user":"Hai chiuso la finestra di Google",
+    "auth/cancelled-popup-request":"Richiesta annullata, riprova",
+    "auth/network-request-failed":"Rete non raggiungibile",
+    "auth/invalid-api-key":"apiKey errata nel file",
+    "auth/configuration-not-found":"Authentication non inizializzato nella console",
+  };
   const signIn=async()=>{
     if(!FB){ flash("Firebase non configurato"); return; }
     try{ await FB.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); flash("Collegato — i salvati ti seguono"); }
-    catch(e){ if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment"){ FB.auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); } else flash("Login annullato"); }
+    catch(e){
+      console.error("[auth]",e.code,e.message,e);
+      if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment"){
+        FB.auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); return;
+      }
+      flash(AUTH_ERR[e.code] || ("Errore: "+(e.code||e.message)));
+    }
   };
   const signOut=async()=>{ await FB.auth.signOut(); flash("Scollegato — resti in locale"); };
 
