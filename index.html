@@ -253,6 +253,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
+const BUILD = "v8 · 09-07 23:30";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -264,7 +265,7 @@ const PROXIES=[
   u=>"https://whateverorigin.org/get?url="+encodeURIComponent(u),
   u=>"https://api.allorigins.win/get?url="+encodeURIComponent(u),
 ];
-const PROXY_PICK="rassegna_proxy_ok";
+const PROXY_PICK="rassegna_proxy_name";
 
 const CLAUDE_URL="https://claude.ai/new";
 const LS={feeds:"rassegna_feeds_v2", read:"rassegna_read", saved:"rassegna_saved", theme:"rassegna_theme", cache:"rassegna_cache", widgets:"rassegna_widgets"};
@@ -357,11 +358,15 @@ async function withTimeout(promise,ms,ctrl){
   try{ return await Promise.race([promise,timeout]); } finally { clearTimeout(t); }
 }
 /* prova i proxy partendo da quello che ha funzionato l'ultima volta */
+function proxyName(i){ try{ return PROXIES[i]("X").split("/")[2]; }catch(e){ return "p"+i; } }
 function proxyOrder(){
-  let start=0;
-  try{ const i=parseInt(localStorage.getItem(PROXY_PICK)); if(i>=0&&i<PROXIES.length) start=i; }catch(e){}
   const idx=PROXIES.map((_,i)=>i);
-  return [...idx.slice(start),...idx.slice(0,start)];
+  let saved=null;
+  try{ saved=localStorage.getItem(PROXY_PICK); }catch(e){}
+  if(!saved) return idx;
+  const k=idx.findIndex(i=>proxyName(i)===saved);
+  if(k<0) return idx;
+  return [...idx.slice(k),...idx.slice(0,k)];
 }
 async function proxyGet(url,ms=8000){
   let lastErr=null;
@@ -380,7 +385,7 @@ async function proxyGet(url,ms=8000){
       if(t.trim().startsWith("{") && t.includes('"contents"')){
         try{ const j=JSON.parse(t); if(j.contents) t=j.contents; else {lastErr=new Error("json vuoto"); continue;} }catch(e){ lastErr=e; continue; }
       }
-      try{ localStorage.setItem(PROXY_PICK,String(i)); }catch(e){}
+      try{ localStorage.setItem(PROXY_PICK,proxyName(i)); }catch(e){}
       return t;
     }catch(e){ lastErr=e; }
   }
@@ -556,6 +561,7 @@ function Ticker({widgets}){
 }
 
 function App(){
+  useEffect(()=>{ console.log("%c[Rassegna] "+BUILD,"color:#8A281C;font-weight:bold","· proxy:",MY_PROXY||"solo pubblici"); },[]);
   const [feeds,setFeeds]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.feeds))||DEFAULT_FEEDS}catch{return DEFAULT_FEEDS}});
   const [read,setRead]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem(LS.read))||[])}catch{return new Set()}});
   const [saved,setSaved]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.saved))||[]}catch{return []}});
@@ -847,6 +853,9 @@ function App(){
         </div>
         <div className="name">Rassegna</div>
         <div className="motto">{theme==="day"?"l'edizione del giorno, in due minuti":"edizione della sera"}</div>
+        <div style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:".1em",color:"var(--faint)",marginBottom:8}}>
+          {BUILD}{MY_PROXY?" · proxy proprio":" · proxy pubblici"}
+        </div>
       </div>
 
       <Ticker widgets={widgets}/>
@@ -1061,6 +1070,11 @@ function Settings({feeds,widgets,onClose,onSave}){
           <p className="hint">Se vedi "feed ko", i proxy pubblici stanno rifiutando le richieste. Prova quali rispondono adesso.</p>
           <button className="ib" style={{width:"100%",justifyContent:"center",padding:"9px"}} disabled={testing} onClick={runTest}>
             {testing?"Provo…":"Testa i proxy"}
+          </button>
+          <button className="ib" style={{width:"100%",justifyContent:"center",padding:"9px",marginTop:8}}
+            onClick={()=>{ ["rassegna_cache","rassegna_proxy_name","rassegna_proxy_ok"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+              try{sessionStorage.clear()}catch(e){} location.reload(true); }}>
+            Svuota cache e ricarica
           </button>
           {res && <div className="hint" style={{marginTop:10}}>
             {res.map(r=>(<div key={r.i}>{r.ok?"✅":"❌"} {r.name} <span style={{opacity:.6}}>({r.ms}ms{r.why?" — "+r.why:""})</span></div>))}
