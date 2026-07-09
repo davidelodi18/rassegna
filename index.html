@@ -249,6 +249,13 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
 
 const PROXY="https://api.allorigins.win/get?url=";
 const PROXY_RAW="https://api.allorigins.win/raw?url=";
+/* se uno strozza o blocca, si passa al successivo */
+const PROXIES=[
+  u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
+  u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
+  u=>"https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(u),
+  u=>"https://api.allorigins.win/get?url="+encodeURIComponent(u),
+];
 const CLAUDE_URL="https://claude.ai/new";
 const LS={feeds:"rassegna_feeds_v2", read:"rassegna_read", saved:"rassegna_saved", theme:"rassegna_theme", cache:"rassegna_cache", widgets:"rassegna_widgets"};
 const CACHE_TTL=10*60*1000;   // 10 minuti: sotto questa soglia non ricarico nulla
@@ -339,88 +346,70 @@ async function withTimeout(promise,ms,ctrl){
   let t; const timeout=new Promise((_,rej)=>{t=setTimeout(()=>{ctrl&&ctrl.abort();rej(new Error("timeout"));},ms);});
   try{ return await Promise.race([promise,timeout]); } finally { clearTimeout(t); }
 }
-/* raw: restituisce l'XML nudo, niente JSON attorno -> meno byte, meno parsing */
+/* prova i proxy in ordine finché uno risponde */
 async function proxyGet(url,ms=9000){
-  const ctrl=new AbortController();
-  try{
-    const r=await withTimeout(fetch(PROXY_RAW+encodeURIComponent(url),{signal:ctrl.signal}),ms,ctrl);
-    if(r.ok){ const t=await r.text(); if(t&&t.length>80) return t; }
-  }catch(e){}
-  const ctrl2=new AbortController();
-  const r2=await withTimeout(fetch(PROXY+encodeURIComponent(url),{signal:ctrl2.signal}),ms,ctrl2);
-  if(!r2.ok) throw new Error("HTTP "+r2.status);
-  const j=await r2.json(); if(!j||j.contents==null) throw new Error("empty");
-  return j.contents;
-}
-function pickImage(it, desc){
-  const tag=n=>it.getElementsByTagName(n);
-  // media:content / media:thumbnail (anche senza prefisso)
-  for(const n of ["media:content","media:thumbnail","content","thumbnail"]){
-    const els=tag(n);
-    for(const el of els){
-      const u=el.getAttribute&&el.getAttribute("url");
-      const type=el.getAttribute&&(el.getAttribute("type")||el.getAttribute("medium"));
-      if(u && (!type || /image/i.test(type))) return u;
-    }
+  let lastErr=null;
+  for(let i=0;i<PROXIES.length;i++){
+    const ctrl=new AbortController();
+    try{
+      const r=await withTimeout(fetch(PROXIES[i](url),{signal:ctrl.signal}),ms,ctrl);
+      if(!r.ok){ lastErr=new Error("HTTP "+r.status); continue; }
+      const t=await r.text();
+      if(!t||t.length<60){ lastErr=new Error("vuoto"); continue; }
+      // l'endpoint /get impacchetta dentro JSON
+      if(t.trim().startsWith("{") && t.includes('"contents"')){
+        try{ const j=JSON.parse(t); if(j.contents) return j.contents; }catch(e){}
+      }
+      return t;
+    }catch(e){ lastErr=e; }
   }
-  // enclosure
-  for(const el of tag("enclosure")){
-    const u=el.getAttribute("url"), t=el.getAttribute("type")||"";
-    if(u && (/image/i.test(t) || /\.(jpe?g|png|webp|avif)(\?|$)/i.test(u))) return u;
-  }
-  // primo <img> dentro description/content
-  const m=(desc||"").match(/<img[^>]+src=["']([^"']+)["']/i);
-  if(m) return m[1];
-  return null;
+  throw lastErr||new Error("tutti i proxy ko");
 }
-function parseFeed(xml,topic){
-  const doc=new DOMParser().parseFromString(xml,"text/xml");
-  let items=[...doc.querySelectorAll("item")]; let atom=false;
-  if(items.length===0){items=[...doc.querySelectorAll("entry")];atom=true;}
-  const chan=doc.querySelector("channel > title")?.textContent||doc.querySelector("feed > title")?.textContent||"";
-  return items.map(it=>{
-    const title=stripHtml(it.querySelector("title")?.textContent||"");
-    let link=""; if(atom){const ls=[...it.querySelectorAll("link")];link=(ls.find(x=>x.getAttribute("rel")==="alternate")||ls[0])?.getAttribute("href")||"";}else{link=it.querySelector("link")?.textContent||"";}
-    const rawDesc=it.querySelector("description")?.textContent||it.querySelector("summary")?.textContent||it.querySelector("content")?.textContent||"";
-    const ds=it.querySelector("pubDate")?.textContent||it.querySelector("updated")?.textContent||it.querySelector("published")?.textContent||"";
-    let src=chan; try{if(!src&&link)src=new URL(link.trim()).hostname.replace("www.","");}catch(e){}
-    let img=null; try{ img=pickImage(it,rawDesc); }catch(e){}
-    if(img && img.startsWith("http://")) img="https://"+img.slice(7);
-    return {title,link:(link||"").trim(),snippet:stripHtml(rawDesc).slice(0,280),date:ds?new Date(ds):null,source:src,topic,img};
-  }).filter(a=>a.title&&a.link);
-}
-async function fetchArticleText(url){
-  try{
-    const html=await proxyGet(url);
-    const doc=new DOMParser().parseFromString(html,"text/html");
-    doc.querySelectorAll("script,style,nav,header,footer,aside,form,figure").forEach(e=>e.remove());
-    const ps=[...doc.querySelectorAll("article p, main p, p")].map(p=>p.textContent.trim()).filter(t=>t.length>45);
-    return [...new Set(ps)].join("\n").slice(0,6500);
-  }catch(e){return "";}
-}
-async function copyText(t){
-  try{await navigator.clipboard.writeText(t);return true;}
-  catch(e){try{const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");document.body.removeChild(ta);return ok;}catch(e2){return false;}}
-}
-function singlePrompt(a,body){
-  const src=body&&body.length>200?body:(a.snippet||"(solo titolo disponibile)");
-  return `Sintetizza questo articolo in 3 punti: cosa è successo, perché conta, dato chiave. Tono asciutto, niente fronzoli.\n\nTitolo: ${a.title}\nFonte: ${a.source}\nLink: ${a.link}\n\nTesto:\n${src}`;
-}
-function digestPrompt(arts){
-  const list=arts.map((a,i)=>`${i+1}. ${a.title} — ${a.source}\n   ${a.link}\n   ${a.snippet}`).join("\n\n");
-  return `Fammi un digest unico di questi articoli, max 5 bullet, collegando i temi. Tono asciutto.\n\n${list}`;
-}
+
 /* ---- widget: dati ---- */
+const COINS={btcusd:"bitcoin",ethusd:"ethereum",solusd:"solana",xrpusd:"ripple",adausd:"cardano"};
+const FIAT=/^([a-z]{3})([a-z]{3})$/i;
+
 async function fetchQuote(sym){
-  const csv=await proxyGet(`https://stooq.com/q/d/l/?s=${encodeURIComponent(sym)}&i=d`,8000);
-  const rows=csv.trim().split("\n");
-  if(rows.length<3) throw new Error("no data");
+  const s0=sym.toLowerCase();
+
+  // cripto: CoinGecko, diretto, senza chiave
+  if(COINS[s0]){
+    const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${COINS[s0]}&vs_currencies=usd&include_24hr_change=true`);
+    const j=await r.json(); const d=j[COINS[s0]];
+    if(!d) throw new Error("no data");
+    return {value:d.usd.toLocaleString("it-IT",{maximumFractionDigits:0}), pct:d.usd_24h_change};
+  }
+
+  // valute: Frankfurter (BCE), diretto, senza chiave
+  const f=s0.match(FIAT);
+  if(f && !s0.startsWith("^") && f[1]!==f[2]){
+    const [_,base,quote]=f;
+    const b=base.toUpperCase(), q=quote.toUpperCase();
+    const r=await fetch(`https://api.frankfurter.dev/v1/latest?base=${b}&symbols=${q}`);
+    const j=await r.json(); const last=j.rates?.[q];
+    if(!last) throw new Error("no data");
+    let pct=0;
+    try{
+      const d=new Date(); d.setDate(d.getDate()-7);
+      const r2=await fetch(`https://api.frankfurter.dev/v1/${d.toISOString().slice(0,10)}..?base=${b}&symbols=${q}`);
+      const j2=await r2.json();
+      const days=Object.keys(j2.rates||{}).sort();
+      const prev=j2.rates[days[days.length-2]]?.[q];
+      if(prev) pct=((last-prev)/prev)*100;
+    }catch(e){}
+    return {value:last.toLocaleString("it-IT",{minimumFractionDigits:4,maximumFractionDigits:4}), pct};
+  }
+
+  // indici e azioni: Stooq via proxy
+  const csv=await proxyGet(`https://stooq.com/q/d/l/?s=${encodeURIComponent(s0)}&i=d`,9000);
+  const rows=csv.trim().split("\n").filter(r=>/^\d{4}-\d{2}-\d{2},/.test(r));
+  if(rows.length<2) throw new Error("no data");
   const close=r=>parseFloat(r.split(",")[4]);
   const last=close(rows[rows.length-1]), prev=close(rows[rows.length-2]);
   if(!isFinite(last)||!isFinite(prev)) throw new Error("bad data");
-  const pct=((last-prev)/prev)*100;
-  const dec = Math.abs(last)<10 ? 4 : 2;
-  return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct};
+  const dec=Math.abs(last)<10?4:2;
+  return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct:((last-prev)/prev)*100};
 }
 async function fetchTopic(q){
   const xml=await proxyGet(GNEWS(q),8000);
@@ -488,7 +477,7 @@ function Ticker({widgets}){
         if(dead) return;
         setData(d=>({...d,[id]:v}));
         cache[id]={at:Date.now(),v}; try{sessionStorage.setItem(key,JSON.stringify(cache));}catch(e){}
-      }catch(e){ if(!dead) setData(d=>({...d,[id]:{err:true}})); }
+      }catch(e){ console.warn("[widget]",w.type,w.arg,e.message||e); if(!dead) setData(d=>({...d,[id]:{err:true}})); }
     });
     return ()=>{dead=true;};
   },[widgets]);
