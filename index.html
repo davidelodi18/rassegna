@@ -387,15 +387,19 @@ async function proxyGet(url,ms=8000){
   throw lastErr||new Error("tutti i proxy ko");
 }
 async function testProxies(){
-  const target="https://www.ilpost.it/feed/";
+  const target="https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml";  // ANSA non blocca i proxy
   const out=[];
   for(let i=0;i<PROXIES.length;i++){
     const t0=Date.now(); const ctrl=new AbortController();
+    const name=PROXIES[i]("X").split("/")[2];
     try{
-      const r=await withTimeout(fetch(PROXIES[i](target),{signal:ctrl.signal}),6000,ctrl);
-      const txt=await r.text();
-      out.push({i,ok:r.ok&&txt.length>200,ms:Date.now()-t0,name:PROXIES[i]("X").split("/")[2]});
-    }catch(e){ out.push({i,ok:false,ms:Date.now()-t0,name:PROXIES[i]("X").split("/")[2]}); }
+      const r=await withTimeout(fetch(PROXIES[i](target),{signal:ctrl.signal}),7000,ctrl);
+      let txt=await r.text();
+      if(txt.trim().startsWith("{")&&txt.includes('"contents"')){ try{ txt=JSON.parse(txt).contents||""; }catch(e){} }
+      const isFeed=/<rss|<feed|<channel/i.test(txt);
+      out.push({i,ok:r.ok&&isFeed,ms:Date.now()-t0,name,
+        why: !r.ok?("HTTP "+r.status) : (!isFeed?"non è un feed":"")});
+    }catch(e){ out.push({i,ok:false,ms:Date.now()-t0,name,why:(e.message==="timeout"?"timeout":"irraggiungibile")}); }
   }
   return out;
 }
@@ -1059,8 +1063,8 @@ function Settings({feeds,widgets,onClose,onSave}){
             {testing?"Provo…":"Testa i proxy"}
           </button>
           {res && <div className="hint" style={{marginTop:10}}>
-            {res.map(r=>(<div key={r.i}>{r.ok?"✅":"❌"} {r.name} <span style={{opacity:.6}}>({r.ms}ms)</span></div>))}
-            <div style={{marginTop:8}}>Se sono tutti ❌, monta il tuo proxy (WORKER.md): è gratis e definitivo.</div>
+            {res.map(r=>(<div key={r.i}>{r.ok?"✅":"❌"} {r.name} <span style={{opacity:.6}}>({r.ms}ms{r.why?" — "+r.why:""})</span></div>))}
+            <div style={{marginTop:8}}>Test su ANSA. Se il tuo Worker è ✅, sei a posto: le testate che restano ko bloccano di loro.</div>
           </div>}
 
           <div className="setlbl">Nastro in alto</div>
