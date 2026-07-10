@@ -60,7 +60,15 @@
   .tk .err{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--faint);}
   .tk .sk{height:17px;width:70%;background:var(--rule);border-radius:2px;opacity:.5;animation:pulse 1.2s ease-in-out infinite;}
   @keyframes pulse{50%{opacity:.2;}}
-  @media (max-width:820px){.ticker{margin:0 -16px;padding:0 16px;}.tk{min-width:132px;padding:9px 14px;}.tk.wide{min-width:190px;}}
+  @media (max-width:820px){
+    .tickerwrap::after{display:none;}
+    .ticker{flex-wrap:wrap;overflow-x:visible;}
+    .tk{flex:1 1 46%;min-width:0;max-width:none;padding:9px 12px;border-bottom:1px solid var(--rule);}
+    .tk:nth-child(2n){border-right:none;}
+    .tk.wide{flex:1 1 100%;border-right:none;}
+    .tk .vl{font-size:16px;}
+    .tk .hd{-webkit-line-clamp:2;}
+  }
 
   .secbar{display:flex;justify-content:center;flex-wrap:wrap;gap:2px;padding:9px 0;border-bottom:1px solid var(--rule);position:sticky;top:0;background:var(--paper);z-index:30;}
   .secbar button{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;background:none;border:none;color:var(--muted);padding:4px 13px;position:relative;}
@@ -72,6 +80,14 @@
   .utility{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;color:var(--faint);}
   .utility .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   .utility .warn{color:var(--stamp);}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .chip-s{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    border:1px solid var(--rule);border-radius:999px;padding:3px 9px;color:var(--muted);background:none;white-space:nowrap;}
+  .chip-s.ok{color:var(--up);border-color:var(--up);}
+  .chip-s.new{color:var(--stamp);border-color:var(--stamp);}
+  .chip-s.bad{color:var(--stamp);border-color:var(--stamp);cursor:pointer;}
+  .chip-s.bad:hover{background:var(--stamp);color:#fff;}
+  .chip-s.live{color:var(--stamp);border-color:var(--stamp);animation:pulse 1.4s ease-in-out infinite;}
   .ib{background:none;border:1px solid var(--rule);border-radius:5px;padding:5px 9px;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;display:inline-flex;align-items:center;gap:5px;}
   .ib:hover{border-color:var(--ink);}
   .ib.sync{border-color:var(--stamp);color:var(--stamp);}
@@ -258,7 +274,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v13 · 10-07";
+const BUILD = "v14 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -954,16 +970,16 @@ function App(){
       </div>
 
       <div className="utility">
-        <span>
-          {loading&&articles.length===0?"Recupero i dispacci…":null}
-          {loading&&articles.length>0?`${articles.length} notizie · aggiorno, resta pure a leggere…`:null}
-          {!loading&&(updated?`Aggiornato ${updated.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})} · ${articles.length} notizie`:"—")}
-          {!loading&&fresh>0&&<span style={{color:"var(--stamp)"}}> · {fresh} nuove</span>}
-          {failed.length>0&&<span className="warn" style={{cursor:"pointer",textDecoration:"underline"}}
-            onClick={()=>setShowFails(v=>!v)}> · {failed.length} feed ko</span>}
-          {user&&<span style={{color:"var(--up)"}}> · sincronizzato{syncing?"…":""} ({user.email?user.email.split("@")[0]:"ok"})</span>}
-          {FB&&!user&&<span> · non collegato</span>}
-          {!FB&&<span className="warn"> · firebase off</span>}
+        <span className="chips">
+          {loading && <span className="chip-s live">aggiorno…</span>}
+          {!loading && updated && <span className="chip-s">{updated.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})}</span>}
+          <span className="chip-s">{articles.length} notizie</span>
+          {fresh>0 && !loading && <span className="chip-s new">{fresh} nuove</span>}
+          {failed.length>0 && (
+            <button className="chip-s bad" onClick={()=>setShowFails(v=>!v)}>{failed.length} feed ko</button>
+          )}
+          {user && <span className="chip-s ok">sync</span>}
+          {FB && !user && <span className="chip-s">offline</span>}
         </span>
         <span className="r">
           {FB && !user && <button className="ib sync" onClick={signIn}>⇅ Sincronizza</button>}
@@ -1186,6 +1202,8 @@ function Settings({feeds,widgets,onClose,onSave}){
           <p className="hint">Una scheda per riga: <code>quote SIMBOLO Etichetta</code> · <code>topic Argomento</code> · <code>weather Città</code>.<br/>
           Simboli borsa (Stooq): <code>^spx</code> S&amp;P 500, <code>^ndq</code> Nasdaq, <code>^dax</code> DAX, <code>eurusd</code>, <code>btcusd</code>, <code>xauusd</code> oro. Per un titolo: <code>enel.it</code>, <code>aapl.us</code>.</p>
           <textarea style={{minHeight:120}} value={wtxt} onChange={e=>setWtxt(e.target.value)} spellCheck="false"></textarea>
+          <button className="ib" style={{width:"100%",justifyContent:"center",padding:"8px",marginTop:8}}
+            onClick={()=>setWtxt(widgetsToText(DEFAULT_WIDGETS))}>Ripristina nastro predefinito</button>
 
           <div className="setlbl">Fonti (avanzato)</div>
           <p className="hint">L'ordine qui sotto è l'ordine delle sezioni. Una sezione per <code>[Nome]</code>, poi un URL RSS per riga. Puoi crearne di tue.</p>
