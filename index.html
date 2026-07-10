@@ -270,7 +270,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v16 · 10-07";
+const BUILD = "v17 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -719,26 +719,37 @@ function App(){
       if(!snap.exists){ pushCloud(true); return; }
       const d=snap.data()||{};
       remote.current=true;
+
       const ms=mergeSaved(saved,d.saved);
-      setSaved(ms); localStorage.setItem(LS.saved,JSON.stringify(ms));
+      if(JSON.stringify(ms)!==JSON.stringify(saved)){ setSaved(ms); localStorage.setItem(LS.saved,JSON.stringify(ms)); }
+
       const mr=new Set([...(d.read||[]),...read]);
-      setRead(mr); localStorage.setItem(LS.read,JSON.stringify([...mr].slice(-MAX_READ)));
-      if(d.feeds&&Object.keys(d.feeds).length){ setFeeds(d.feeds); localStorage.setItem(LS.feeds,JSON.stringify(d.feeds)); }
-      if(Array.isArray(d.widgets)&&d.widgets.length){ setWidgets(d.widgets); localStorage.setItem(LS.widgets,JSON.stringify(d.widgets)); }
-      if(d.theme) setTheme(d.theme);
+      if(mr.size!==read.size){ setRead(mr); localStorage.setItem(LS.read,JSON.stringify([...mr].slice(-MAX_READ))); }
+
+      if(d.feeds&&Object.keys(d.feeds).length&&JSON.stringify(d.feeds)!==JSON.stringify(feeds)){
+        setFeeds(d.feeds); localStorage.setItem(LS.feeds,JSON.stringify(d.feeds));
+      }
+      if(Array.isArray(d.widgets)&&d.widgets.length&&JSON.stringify(d.widgets)!==JSON.stringify(widgets)){
+        setWidgets(d.widgets); localStorage.setItem(LS.widgets,JSON.stringify(d.widgets));
+      }
+      if(d.theme&&d.theme!==theme) setTheme(d.theme);
+
       setTimeout(()=>{remote.current=false;},0);
     },err=>{ setSyncing(false); console.error("[firestore]",err.code,err.message,err);
       flash(err.code==="permission-denied"?"Regole Firestore da pubblicare":"Sync non riuscita: "+(err.code||"")); });
     return unsub;
   },[user]); // eslint-disable-line
 
+  const lastPush=useRef("");
   const pushCloud=useCallback(async(force)=>{
     if(!FB||!FB.auth.currentUser) return;
     if(remote.current&&!force) return;
+    const payload={ saved, read:[...read].slice(-MAX_READ), feeds, widgets, theme };
+    const sig=JSON.stringify(payload);
+    if(sig===lastPush.current && !force) return;   // niente di nuovo: non scrivo, non innesco lo snapshot
+    lastPush.current=sig;
     try{
-      await FB.db.collection("rassegna").doc(FB.auth.currentUser.uid).set({
-        saved, read:[...read].slice(-MAX_READ), feeds, widgets, theme, updatedAt:Date.now(),
-      },{merge:true});
+      await FB.db.collection("rassegna").doc(FB.auth.currentUser.uid).set({...payload, updatedAt:Date.now()},{merge:true});
     }catch(e){ console.error(e); }
   },[saved,read,feeds,widgets,theme]);
 
@@ -854,8 +865,9 @@ function App(){
     }
     setFailed(fails); setUpdated(new Date()); setLoading(false);
   },[feeds]);
+  const feedsKey=useMemo(()=>JSON.stringify(feeds),[feeds]);
   const first=useRef(true);
-  useEffect(()=>{ load(!first.current); first.current=false; },[feeds]); // eslint-disable-line
+  useEffect(()=>{ load(!first.current); first.current=false; },[feedsKey]); // eslint-disable-line
   useEffect(()=>{window.scrollTo({top:0});},[tab]);
 
   const counts=useMemo(()=>{const c={all:articles.length};order.forEach(t=>c[t]=articles.filter(a=>a.topic===t).length);return c;},[articles,feeds]);
