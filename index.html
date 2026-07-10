@@ -253,7 +253,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v11 · 10-07";
+const BUILD = "v12 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -278,10 +278,9 @@ const DEFAULT_WIDGETS=[
   {type:"topic", arg:"Serie A", label:"Serie A"},
   {type:"weather", arg:"Milano", label:"Milano"},
 ];
+const G=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=it&gl=IT&ceid=IT:it`;
 const GNEWS=G;
 const MAX_READ=600;
-
-const G=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=it&gl=IT&ceid=IT:it`;
 
 const DEFAULT_FEEDS={
   economia:{ label:"Economia", urls:[
@@ -641,6 +640,7 @@ function App(){
   const [settings,setSettings]=useState(false);
   const [toast,setToast]=useState("");
   const [busy,setBusy]=useState(null);
+  const [showFails,setShowFails]=useState(false);
 
   const [user,setUser]=useState(null);
   const [syncing,setSyncing]=useState(false);
