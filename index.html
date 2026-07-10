@@ -37,7 +37,12 @@
   /* ---- nastro servizi ---- */
   :root{--up:#1E6B47;--down:#A32B1C;}
   html[data-theme="night"]{--up:#5FBF8E;--down:#E0705C;}
-  .ticker{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--rule);background:var(--paper);}
+  .tickerwrap{position:relative;}
+  .tickerwrap::after{content:"";position:absolute;right:0;top:0;bottom:1px;width:42px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,var(--paper));}
+  .ticker{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--rule);background:var(--paper);
+    scroll-snap-type:x proximity;}
+  .tk{scroll-snap-align:start;}
   .ticker::-webkit-scrollbar{display:none;}
   .tk{flex:0 0 auto;min-width:150px;max-width:280px;padding:10px 18px;border-right:1px solid var(--rule);display:flex;flex-direction:column;justify-content:center;gap:3px;}
   .tk:first-child{padding-left:2px;}
@@ -253,7 +258,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v12 · 10-07";
+const BUILD = "v13 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -470,11 +475,25 @@ function digestPrompt(arts){
 /* ---- widget: dati ---- */
 const COINS={btcusd:"bitcoin",ethusd:"ethereum",solusd:"solana",xrpusd:"ripple",adausd:"cardano"};
 const FIAT=/^([a-z]{3})([a-z]{3})$/i;
+/* alias comodi -> simboli Yahoo */
+const YAHOO={
+  "^spx":"^GSPC", "^gspc":"^GSPC", "^ndq":"^IXIC", "^ixic":"^IXIC", "^dji":"^DJI",
+  "^dax":"^GDAXI", "^gdaxi":"^GDAXI", "^ftsemib":"FTSEMIB.MI", "ftsemib":"FTSEMIB.MI",
+  "^smi":"^SSMI", "^stoxx50":"^STOXX50E", "^ftse":"^FTSE", "^n225":"^N225",
+  "xauusd":"GC=F", "oro":"GC=F", "brent":"BZ=F", "petrolio":"CL=F",
+};
+function toYahoo(sym){
+  const k=sym.toLowerCase();
+  if(YAHOO[k]) return YAHOO[k];
+  const m=k.match(/^([a-z0-9.\-]+)\.(it|us|de|uk|fr)$/);
+  if(m){ const suf={it:".MI",de:".DE",uk:".L",fr:".PA",us:""}[m[2]]; return m[1].toUpperCase()+suf; }
+  return sym.toUpperCase();
+}
 
 async function fetchQuote(sym){
   const s0=sym.toLowerCase();
 
-  // cripto: CoinGecko, diretto, senza chiave
+  // cripto: CoinGecko, diretto
   if(COINS[s0]){
     const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${COINS[s0]}&vs_currencies=usd&include_24hr_change=true`);
     const j=await r.json(); const d=j[COINS[s0]];
@@ -482,11 +501,10 @@ async function fetchQuote(sym){
     return {value:d.usd.toLocaleString("it-IT",{maximumFractionDigits:0}), pct:d.usd_24h_change};
   }
 
-  // valute: Frankfurter (BCE), diretto, senza chiave
+  // valute: Frankfurter (BCE), diretto
   const f=s0.match(FIAT);
-  if(f && !s0.startsWith("^") && f[1]!==f[2]){
-    const [_,base,quote]=f;
-    const b=base.toUpperCase(), q=quote.toUpperCase();
+  if(f && !s0.startsWith("^") && f[1]!==f[2] && !YAHOO[s0]){
+    const b=f[1].toUpperCase(), q=f[2].toUpperCase();
     const r=await fetch(`https://api.frankfurter.dev/v1/latest?base=${b}&symbols=${q}`);
     const j=await r.json(); const last=j.rates?.[q];
     if(!last) throw new Error("no data");
@@ -502,15 +520,30 @@ async function fetchQuote(sym){
     return {value:last.toLocaleString("it-IT",{minimumFractionDigits:4,maximumFractionDigits:4}), pct};
   }
 
-  // indici e azioni: Stooq via proxy
-  const csv=await proxyGet(`https://stooq.com/q/d/l/?s=${encodeURIComponent(s0)}&i=d`,9000);
-  const rows=csv.trim().split("\n").filter(r=>/^\d{4}-\d{2}-\d{2},/.test(r));
-  if(rows.length<2) throw new Error("no data");
-  const close=r=>parseFloat(r.split(",")[4]);
-  const last=close(rows[rows.length-1]), prev=close(rows[rows.length-2]);
-  if(!isFinite(last)||!isFinite(prev)) throw new Error("bad data");
-  const dec=Math.abs(last)<10?4:2;
-  return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct:((last-prev)/prev)*100};
+  // indici e azioni: Yahoo Finance via proxy (Stooq blocca i datacenter)
+  const y=toYahoo(s0);
+  try{
+    const txt=await proxyGet(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(y)}?range=5d&interval=1d`,9000);
+    const j=JSON.parse(txt);
+    const meta=j?.chart?.result?.[0]?.meta;
+    if(!meta) throw new Error("no data");
+    const last=meta.regularMarketPrice;
+    const prev=meta.chartPreviousClose ?? meta.previousClose;
+    if(!isFinite(last)) throw new Error("no price");
+    const pct=isFinite(prev)&&prev?((last-prev)/prev)*100:0;
+    const dec=Math.abs(last)<10?4:2;
+    return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct};
+  }catch(e){
+    // ripiego su Stooq
+    const csv=await proxyGet(`https://stooq.com/q/d/l/?s=${encodeURIComponent(s0)}&i=d`,9000);
+    const rows=csv.trim().split("\n").filter(r=>/^\d{4}-\d{2}-\d{2},/.test(r));
+    if(rows.length<2) throw new Error("no data");
+    const close=r=>parseFloat(r.split(",")[4]);
+    const last=close(rows[rows.length-1]), prev=close(rows[rows.length-2]);
+    if(!isFinite(last)||!isFinite(prev)) throw new Error("bad data");
+    const dec=Math.abs(last)<10?4:2;
+    return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct:((last-prev)/prev)*100};
+  }
 }
 async function fetchTopic(q){
   const xml=await proxyGet(GNEWS(q),8000);
@@ -578,7 +611,7 @@ function Ticker({widgets}){
         if(dead) return;
         setData(d=>({...d,[id]:v}));
         cache[id]={at:Date.now(),v}; try{sessionStorage.setItem(key,JSON.stringify(cache));}catch(e){}
-      }catch(e){ console.warn("[widget]",w.type,w.arg,e.message||e); if(!dead) setData(d=>({...d,[id]:{err:true}})); }
+      }catch(e){ console.warn("[widget]",w.type,w.arg,e.message||e); if(!dead) setData(d=>({...d,[id]:{err:true,why:e.message||"errore"}})); }
     });
     return ()=>{dead=true;};
   },[widgets]);
@@ -587,7 +620,7 @@ function Ticker({widgets}){
 
   if(!widgets.length) return null;
   return (
-    <div className="ticker">
+    <div className="tickerwrap"><div className="ticker">
       {widgets.map((w,i)=>{
         const id=w.type+":"+w.arg, v=data[id];
         const wide=w.type==="topic";
@@ -595,7 +628,7 @@ function Ticker({widgets}){
           <div className={"tk"+(wide?" wide":"")} key={id+i}>
             <div className="lb">{w.label}</div>
             {!v && <div className="sk"></div>}
-            {v&&v.err && <div className="err">n/d</div>}
+            {v&&v.err && <div className="err" title={v.why} style={{cursor:"help"}}>n/d</div>}
             {v&&!v.err&&w.type==="quote" && (
               <div className="vl">{v.value}
                 <span className={"dl "+(v.pct>=0?"up":"dn")}>{v.pct>=0?"▲":"▼"} {Math.abs(v.pct).toFixed(2)}%</span>
@@ -614,7 +647,7 @@ function Ticker({widgets}){
           </div>
         );
       })}
-    </div>
+    </div></div>
   );
 }
 
@@ -908,9 +941,6 @@ function App(){
         </div>
         <div className="name">Rassegna</div>
         <div className="motto">{theme==="day"?"l'edizione del giorno, in due minuti":"edizione della sera"}</div>
-        <div style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:".1em",color:"var(--faint)",marginBottom:8}}>
-          {BUILD}{MY_PROXY?" · proxy proprio":" · proxy pubblici"}
-        </div>
       </div>
 
       <Ticker widgets={widgets}/>
