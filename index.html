@@ -253,16 +253,14 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v8 · 09-07 23:30";
+const BUILD = "v11 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
   ...(MY_PROXY?[u=>MY_PROXY+encodeURIComponent(u)]:[]),
-  u=>"https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(u),
-  u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
+  // riserve, in ordine di velocità misurata (i morti li ho tolti)
   u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
-  u=>"https://api.cors.lol/?url="+encodeURIComponent(u),
-  u=>"https://whateverorigin.org/get?url="+encodeURIComponent(u),
+  u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
   u=>"https://api.allorigins.win/get?url="+encodeURIComponent(u),
 ];
 const PROXY_PICK="rassegna_proxy_name";
@@ -280,67 +278,66 @@ const DEFAULT_WIDGETS=[
   {type:"topic", arg:"Serie A", label:"Serie A"},
   {type:"weather", arg:"Milano", label:"Milano"},
 ];
-const GNEWS=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=it&gl=IT&ceid=IT:it`;
+const GNEWS=G;
 const MAX_READ=600;
+
+const G=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=it&gl=IT&ceid=IT:it`;
 
 const DEFAULT_FEEDS={
   economia:{ label:"Economia", urls:[
     "https://www.ansa.it/sito/notizie/economia/economia_rss.xml",
     "https://www.repubblica.it/rss/economia/rss2.0.xml",
-    "https://www.ilpost.it/economia/feed/",
   ]},
   geopolitica:{ label:"Geopolitica", urls:[
     "https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml",
     "https://www.repubblica.it/rss/esteri/rss2.0.xml",
-    "https://www.ilpost.it/mondo/feed/",
   ]},
   sport:{ label:"Sport", urls:[
     "https://www.ansa.it/sito/notizie/sport/sport_rss.xml",
     "https://www.ansa.it/sito/notizie/sport/calcio/calcio_rss.xml",
-    "https://www.ilpost.it/sport/feed/",
   ]},
   tech:{ label:"Tech & AI", urls:[
-    "https://www.ansa.it/sito/notizie/tecnologia/tecnologia_rss.xml",
     "https://www.theverge.com/rss/index.xml",
     "https://techcrunch.com/feed/",
     "https://hnrss.org/frontpage",
   ]},
   cultura:{ label:"Cultura", urls:[
     "https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml",
-    "https://www.ilpost.it/cultura/feed/",
     "https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml",
   ]},
   scienza:{ label:"Scienza", urls:[
-    "https://www.ansa.it/canale_scienza_tecnica/notizie/scienza_tecnica_rss.xml",
-    "https://www.ilpost.it/scienza/feed/",
     "https://www.sciencedaily.com/rss/top/science.xml",
+    G("scienza ricerca"),
   ]},
   italia:{ label:"Italia", urls:[
     "https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml",
-    "https://www.ilpost.it/feed/",
     "https://www.repubblica.it/rss/homepage/rss2.0.xml",
   ]},
 };
 
-/* Macroaree pronte: si attivano/disattivano da ⚙ */
+/* Macroaree pronte: si attivano/disattivano da ⚙.
+   Per le sezioni di nicchia uso le ricerche di Google News: non hanno URL che spariscono. */
 const CATALOG=[
-  {id:"economia",label:"Economia",urls:["https://www.ansa.it/sito/notizie/economia/economia_rss.xml","https://www.repubblica.it/rss/economia/rss2.0.xml","https://www.ilpost.it/economia/feed/"]},
-  {id:"geopolitica",label:"Geopolitica",urls:["https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml","https://www.repubblica.it/rss/esteri/rss2.0.xml","https://www.ilpost.it/mondo/feed/"]},
-  {id:"sport",label:"Sport",urls:["https://www.ansa.it/sito/notizie/sport/sport_rss.xml","https://www.ansa.it/sito/notizie/sport/calcio/calcio_rss.xml","https://www.ilpost.it/sport/feed/"]},
-  {id:"tech",label:"Tech & AI",urls:["https://www.ansa.it/sito/notizie/tecnologia/tecnologia_rss.xml","https://www.theverge.com/rss/index.xml","https://techcrunch.com/feed/","https://hnrss.org/frontpage"]},
-  {id:"cultura",label:"Cultura",urls:["https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml","https://www.ilpost.it/cultura/feed/","https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml"]},
-  {id:"scienza",label:"Scienza",urls:["https://www.ansa.it/canale_scienza_tecnica/notizie/scienza_tecnica_rss.xml","https://www.ilpost.it/scienza/feed/","https://www.sciencedaily.com/rss/top/science.xml"]},
-  {id:"italia",label:"Italia",urls:["https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml","https://www.ilpost.it/feed/","https://www.repubblica.it/rss/homepage/rss2.0.xml"]},
-  {id:"libri",label:"Libri",urls:["https://www.ilpost.it/libri/feed/","https://www.ansa.it/sito/notizie/cultura/libri/libri_rss.xml"]},
-  {id:"cinema",label:"Cinema & TV",urls:["https://www.ansa.it/sito/notizie/cultura/cinema/cinema_rss.xml","https://www.ilpost.it/tv/feed/"]},
-  {id:"musica",label:"Musica",urls:["https://www.ilpost.it/musica/feed/","https://www.ansa.it/sito/notizie/cultura/musica/musica_rss.xml"]},
-  {id:"dach",label:"DACH",urls:["https://www.spiegel.de/wirtschaft/index.rss","https://www.tagesschau.de/index~rss2.xml","https://www.handelsblatt.com/contentexport/feed/schlagzeilen"]},
-  {id:"food",label:"Food Science",urls:["https://ilfattoalimentare.it/feed","https://www.sciencedaily.com/rss/health_medicine/food.xml"]},
+  {id:"economia",label:"Economia",urls:["https://www.ansa.it/sito/notizie/economia/economia_rss.xml","https://www.repubblica.it/rss/economia/rss2.0.xml"]},
+  {id:"geopolitica",label:"Geopolitica",urls:["https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml","https://www.repubblica.it/rss/esteri/rss2.0.xml"]},
+  {id:"sport",label:"Sport",urls:["https://www.ansa.it/sito/notizie/sport/sport_rss.xml","https://www.ansa.it/sito/notizie/sport/calcio/calcio_rss.xml"]},
+  {id:"tech",label:"Tech & AI",urls:["https://www.theverge.com/rss/index.xml","https://techcrunch.com/feed/","https://hnrss.org/frontpage"]},
+  {id:"cultura",label:"Cultura",urls:["https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml","https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml"]},
+  {id:"scienza",label:"Scienza",urls:["https://www.sciencedaily.com/rss/top/science.xml",G("scienza ricerca")]},
+  {id:"italia",label:"Italia",urls:["https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml","https://www.repubblica.it/rss/homepage/rss2.0.xml"]},
+  {id:"politica",label:"Politica",urls:["https://www.ansa.it/sito/notizie/politica/politica_rss.xml","https://www.repubblica.it/rss/politica/rss2.0.xml"]},
+  {id:"cronaca",label:"Cronaca",urls:["https://www.ansa.it/sito/notizie/cronaca/cronaca_rss.xml","https://www.repubblica.it/rss/cronaca/rss2.0.xml"]},
+  {id:"libri",label:"Libri",urls:[G("libri recensioni editoria")]},
+  {id:"cinema",label:"Cinema & TV",urls:[G("cinema film serie tv")]},
+  {id:"musica",label:"Musica",urls:[G("musica concerti album")]},
+  {id:"dach",label:"DACH",urls:["https://www.spiegel.de/wirtschaft/index.rss","https://www.tagesschau.de/index~rss2.xml"]},
+  {id:"food",label:"Food Science",urls:["https://www.sciencedaily.com/rss/health_medicine/food.xml",G("scienza alimentare food technology")]},
   {id:"emilia",label:"Emilia-Romagna",urls:["https://www.ansa.it/emiliaromagna/notizie/emiliaromagna_rss.xml"]},
   {id:"motori",label:"Motori",urls:["https://www.ansa.it/canale_motori/notizie/motori_rss.xml"]},
-  {id:"salute",label:"Salute",urls:["https://www.ansa.it/canale_saluteebenessere/notizie/salute_benessere_rss.xml","https://www.ilpost.it/scienza/feed/"]},
-  {id:"ambiente",label:"Ambiente",urls:["https://www.ansa.it/canale_ambiente/notizie/ambiente_rss.xml","https://www.ilpost.it/ambiente/feed/"]},
+  {id:"salute",label:"Salute",urls:[G("salute medicina"),"https://www.sciencedaily.com/rss/health_medicine.xml"]},
+  {id:"ambiente",label:"Ambiente",urls:[G("ambiente clima energia")]},
   {id:"mondo_en",label:"Mondo (EN)",urls:["https://feeds.bbci.co.uk/news/world/rss.xml","https://www.theguardian.com/world/rss"]},
+  {id:"ceramica",label:"Ceramica",urls:[G("industria ceramica piastrelle Sassuolo")]},
 ];
 
 /* ---------- utils ---------- */
@@ -407,6 +404,68 @@ async function testProxies(){
     }catch(e){ out.push({i,ok:false,ms:Date.now()-t0,name,why:(e.message==="timeout"?"timeout":"irraggiungibile")}); }
   }
   return out;
+}
+
+
+/* ---- parsing dei feed ---- */
+function pickImage(it, desc){
+  const tag=n=>it.getElementsByTagName(n);
+  for(const n of ["media:content","media:thumbnail","content","thumbnail"]){
+    for(const el of tag(n)){
+      const u=el.getAttribute&&el.getAttribute("url");
+      const type=el.getAttribute&&(el.getAttribute("type")||el.getAttribute("medium"));
+      if(u && (!type || /image/i.test(type))) return u;
+    }
+  }
+  for(const el of tag("enclosure")){
+    const u=el.getAttribute("url"), t=el.getAttribute("type")||"";
+    if(u && (/image/i.test(t) || /\.(jpe?g|png|webp|avif)(\?|$)/i.test(u))) return u;
+  }
+  const m=(desc||"").match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?m[1]:null;
+}
+function parseFeed(xml,topic){
+  const doc=new DOMParser().parseFromString(xml,"text/xml");
+  let items=[...doc.querySelectorAll("item")]; let atom=false;
+  if(items.length===0){items=[...doc.querySelectorAll("entry")];atom=true;}
+  const chan=doc.querySelector("channel > title")?.textContent||doc.querySelector("feed > title")?.textContent||"";
+  return items.map(it=>{
+    const title=stripHtml(it.querySelector("title")?.textContent||"");
+    let link="";
+    if(atom){const ls=[...it.querySelectorAll("link")];link=(ls.find(x=>x.getAttribute("rel")==="alternate")||ls[0])?.getAttribute("href")||"";}
+    else{link=it.querySelector("link")?.textContent||"";}
+    const rawDesc=it.querySelector("description")?.textContent||it.querySelector("summary")?.textContent||it.querySelector("content")?.textContent||"";
+    const ds=it.querySelector("pubDate")?.textContent||it.querySelector("updated")?.textContent||it.querySelector("published")?.textContent||"";
+    let src=chan; try{if(!src&&link)src=new URL(link.trim()).hostname.replace("www.","");}catch(e){}
+    let img=null; try{ img=pickImage(it,rawDesc); }catch(e){}
+    if(img && img.startsWith("http://")) img="https://"+img.slice(7);
+    return {title,link:(link||"").trim(),snippet:stripHtml(rawDesc).slice(0,280),date:ds?new Date(ds):null,source:src,topic,img};
+  }).filter(a=>a.title&&a.link);
+}
+async function fetchArticleText(url){
+  try{
+    const html=await proxyGet(url,9000);
+    const doc=new DOMParser().parseFromString(html,"text/html");
+    doc.querySelectorAll("script,style,nav,header,footer,aside,form,figure").forEach(e=>e.remove());
+    const ps=[...doc.querySelectorAll("article p, main p, p")].map(p=>p.textContent.trim()).filter(t=>t.length>45);
+    return [...new Set(ps)].join("\n").slice(0,6500);
+  }catch(e){return "";}
+}
+async function copyText(t){
+  try{await navigator.clipboard.writeText(t);return true;}
+  catch(e){
+    try{const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";
+      document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");document.body.removeChild(ta);return ok;}
+    catch(e2){return false;}
+  }
+}
+function singlePrompt(a,body){
+  const src=body&&body.length>200?body:(a.snippet||"(solo titolo disponibile)");
+  return `Sintetizza questo articolo in 3 punti: cosa è successo, perché conta, dato chiave. Tono asciutto, niente fronzoli.\n\nTitolo: ${a.title}\nFonte: ${a.source}\nLink: ${a.link}\n\nTesto:\n${src}`;
+}
+function digestPrompt(arts){
+  const list=arts.map((a,i)=>`${i+1}. ${a.title} — ${a.source}\n   ${a.link}\n   ${a.snippet}`).join("\n\n");
+  return `Fammi un digest unico di questi articoli, max 5 bullet, collegando i temi. Tono asciutto.\n\n${list}`;
 }
 
 /* ---- widget: dati ---- */
@@ -714,16 +773,16 @@ function App(){
     const worker=async()=>{
       while(cursor<jobs.length){
         const j=jobs[cursor++];
-        let done=false;
+        let done=false, lastWhy=null;
         for(let attempt=0;attempt<2&&!done;attempt++){
           try{
             const items=parseFeed(await proxyGet(j.u, attempt===0?7000:11000), j.tid);
             if(!items.length) throw new Error("nessun articolo");
             all.push(...items); done=true; schedule();
           }
-          catch(e){ if(attempt===0) await new Promise(r=>setTimeout(r,400)); }
+          catch(e){ lastWhy=e.message||"errore"; if(attempt===0) await new Promise(r=>setTimeout(r,400)); }
         }
-        if(!done) fails.push(j.u);
+        if(!done) fails.push({url:j.u, topic:j.tid, why:lastWhy||"errore"});
       }
     };
     await Promise.all([worker(),worker(),worker(),worker(),worker()]);
@@ -870,7 +929,8 @@ function App(){
           {loading&&articles.length>0?`${articles.length} notizie · aggiorno, resta pure a leggere…`:null}
           {!loading&&(updated?`Aggiornato ${updated.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})} · ${articles.length} notizie`:"—")}
           {!loading&&fresh>0&&<span style={{color:"var(--stamp)"}}> · {fresh} nuove</span>}
-          {failed.length>0&&<span className="warn"> · {failed.length} feed ko</span>}
+          {failed.length>0&&<span className="warn" style={{cursor:"pointer",textDecoration:"underline"}}
+            onClick={()=>setShowFails(v=>!v)}> · {failed.length} feed ko</span>}
           {user&&<span style={{color:"var(--up)"}}> · sincronizzato{syncing?"…":""} ({user.email?user.email.split("@")[0]:"ok"})</span>}
           {FB&&!user&&<span> · non collegato</span>}
           {!FB&&<span className="warn"> · firebase off</span>}
@@ -889,6 +949,19 @@ function App(){
           <button className="ib" onClick={()=>setSettings(true)}>⚙ Fonti</button>
         </span>
       </div>
+
+      {showFails && failed.length>0 && (
+        <div style={{border:"1px solid var(--rule)",borderRadius:8,padding:"12px 14px",margin:"10px 0",background:"var(--card)"}}>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,letterSpacing:".12em",textTransform:"uppercase",color:"var(--stamp)",marginBottom:8}}>Feed che non rispondono</div>
+          {failed.map((f,i)=>(
+            <div key={i} style={{fontSize:12,color:"var(--muted)",marginBottom:5,wordBreak:"break-all",lineHeight:1.4}}>
+              <span style={{color:"var(--ink)"}}>{feeds[f.topic]?.label||f.topic}</span> — {f.url}
+              <span style={{color:"var(--stamp)"}}> ({f.why})</span>
+            </div>
+          ))}
+          <div style={{fontSize:12,color:"var(--faint)",marginTop:8}}>Copiali e toglili da ⚙ → Fonti, oppure lasciali: l'app li salta e usa gli altri.</div>
+        </div>
+      )}
 
       {tab==="all" && (
         <>
