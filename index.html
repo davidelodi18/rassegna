@@ -169,14 +169,14 @@
   .empty{padding:70px 0;text-align:center;color:var(--muted);}
   .empty b{font-family:'Newsreader',serif;font-size:24px;color:var(--ink);display:block;margin-bottom:8px;}
 
-  .selbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 22px;}}
+  .selbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 22px;}
   .selbar .txt{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.05em;}
   .selbar .grp{display:flex;gap:8px;}
   .selbar button{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;border:1px solid rgba(255,255,255,.35);background:none;color:inherit;border-radius:5px;padding:7px 12px;}
   .selbar button.go{background:var(--stamp);border-color:var(--stamp);color:#fff;}
 
-  .backdrop{position:fixed;inset:0;background:var(--veil);z-index:60;}}
-  .panel{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:61;background:var(--card);border-left:2px solid var(--ink);display:flex;flex-direction:column;}}
+  .backdrop{position:fixed;inset:0;background:var(--veil);z-index:60;}
+  .panel{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:61;background:var(--card);border-left:2px solid var(--ink);display:flex;flex-direction:column;}
   .panel header{padding:18px 20px;border-bottom:1px solid var(--rule);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
   .panel header .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--stamp);margin-bottom:6px;}
   .panel header h3{font-family:'Newsreader',serif;font-weight:600;font-size:19px;margin:0;line-height:1.25;}
@@ -200,7 +200,7 @@
   .set .hint{font-size:12px;color:var(--faint);margin:0 0 8px;line-height:1.45;}
   .set .save{margin-top:20px;background:var(--stamp);color:#fff;border:none;border-radius:6px;padding:11px 18px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;width:100%;}
 
-  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--paper);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;padding:11px 18px;border-radius:8px;box-shadow:0 6px 24px var(--shadow);}}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--paper);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;padding:11px 18px;border-radius:8px;box-shadow:0 6px 24px var(--shadow);}
 
   .read h1 a,.read h2 a,.read h3 a{color:var(--muted);}
   .read .snip{color:var(--faint);}
@@ -270,7 +270,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v15 · 10-07";
+const BUILD = "v16 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
