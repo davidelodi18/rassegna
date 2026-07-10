@@ -270,7 +270,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v17 · 10-07";
+const BUILD = "v18 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -292,7 +292,7 @@ const DEFAULT_WIDGETS=[
   {type:"quote", arg:"eurusd", label:"EUR/USD"},
   {type:"quote", arg:"btcusd", label:"Bitcoin"},
   {type:"topic", arg:"Wimbledon", label:"Wimbledon"},
-  {type:"topic", arg:"Serie A", label:"Serie A"},
+  {type:"topic", arg:"Serie A calcio", label:"Serie A"},
   {type:"weather", arg:"Milano", label:"Milano"},
 ];
 const G=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=it&gl=IT&ceid=IT:it`;
@@ -557,11 +557,19 @@ async function fetchQuote(sym){
     return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct:((last-prev)/prev)*100};
   }
 }
+const BING=q=>`https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=rss&setmkt=it-IT`;
 async function fetchTopic(q){
-  const xml=await proxyGet(GNEWS(q),8000);
-  const items=parseFeed(xml,"topic").slice(0,6);
-  if(!items.length) throw new Error("vuoto");
-  return items.map(i=>({title:i.title.replace(/\s+-\s+[^-]+$/,"").trim(), link:i.link, date:i.date}));
+  const sources=[["Google News",G(q)],["Bing News",BING(q)]];
+  let lastErr=null;
+  for(const [name,url] of sources){
+    try{
+      const xml=await proxyGet(url,8000);
+      const items=parseFeed(xml,"topic").slice(0,6);
+      if(!items.length){ lastErr=new Error(name+": nessun titolo"); continue; }
+      return items.map(i=>({title:i.title.replace(/\s+-\s+[^-]+$/,"").trim(), link:i.link, date:i.date}));
+    }catch(e){ lastErr=new Error(name+": "+(e.message||"ko")); }
+  }
+  throw lastErr||new Error("nessuna fonte");
 }
 async function fetchWeather(city){
   const g=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=it`);
@@ -580,12 +588,29 @@ const WMO=c=>{
 };
 function parseWidgets(t){
   return t.split("\n").map(l=>l.trim()).filter(Boolean).filter(l=>!l.startsWith("#")).map(l=>{
-    const m=l.match(/^(quote|topic|weather)\s+(\S+)(?:\s+(.*))?$/i);
+    const m=l.match(/^(quote|topic|weather)\s+(.+)$/i);
     if(!m) return null;
-    return {type:m[1].toLowerCase(), arg:m[2], label:(m[3]||m[2]).trim()};
+    const type=m[1].toLowerCase();
+    let rest=m[2].trim(), label=null;
+    // etichetta esplicita dopo la barra verticale: "topic Serie A | Calcio"
+    const bar=rest.split("|");
+    if(bar.length>1){ label=bar.pop().trim(); rest=bar.join("|").trim(); }
+    if(type==="quote"){
+      // qui il primo token è il simbolo, il resto è l'etichetta
+      const parts=rest.split(/\s+/);
+      const arg=parts.shift();
+      return {type,arg,label:label||(parts.join(" ")||arg)};
+    }
+    // topic e weather: l'argomento è tutta la frase ("Serie A", "Reggio Emilia")
+    return {type,arg:rest,label:label||rest};
   }).filter(Boolean);
 }
-function widgetsToText(ws){ return ws.map(w=>`${w.type} ${w.arg}${w.label&&w.label!==w.arg?" "+w.label:""}`).join("\n"); }
+function widgetsToText(ws){
+  return ws.map(w=>{
+    if(w.type==="quote") return `quote ${w.arg}${w.label&&w.label!==w.arg?" "+w.label:""}`;
+    return `${w.type} ${w.arg}${w.label&&w.label!==w.arg?" | "+w.label:""}`;
+  }).join("\n");
+}
 
 function ser(a){return {...a,date:a.date?a.date.toISOString():null};}
 function deser(a){return {...a,date:a.date?new Date(a.date):null};}
@@ -1216,8 +1241,10 @@ function Settings({feeds,widgets,onClose,onSave}){
           </div>}
 
           <div className="setlbl">Nastro in alto</div>
-          <p className="hint">Una scheda per riga: <code>quote SIMBOLO Etichetta</code> · <code>topic Argomento</code> · <code>weather Città</code>.<br/>
-          Simboli borsa (Stooq): <code>^spx</code> S&amp;P 500, <code>^ndq</code> Nasdaq, <code>^dax</code> DAX, <code>eurusd</code>, <code>btcusd</code>, <code>xauusd</code> oro. Per un titolo: <code>enel.it</code>, <code>aapl.us</code>.</p>
+          <p className="hint">Una scheda per riga:<br/>
+          <code>quote ^spx S&amp;P 500</code> · <code>topic Serie A calcio | Serie A</code> · <code>weather Reggio Emilia</code><br/>
+          Nei temi l'argomento è tutta la frase; dopo <code>|</code> metti un'etichetta corta.<br/>
+          Borsa: <code>^spx</code>, <code>^ndq</code>, <code>^dax</code>, <code>ftsemib</code>, <code>xauusd</code> (oro), <code>brent</code>. Titoli: <code>enel.it</code>, <code>aapl.us</code>. Valute: <code>eurusd</code>. Cripto: <code>btcusd</code>.</p>
           <textarea style={{minHeight:120}} value={wtxt} onChange={e=>setWtxt(e.target.value)} spellCheck="false"></textarea>
           <button className="ib" style={{width:"100%",justifyContent:"center",padding:"8px",marginTop:8}}
             onClick={()=>setWtxt(widgetsToText(DEFAULT_WIDGETS))}>Ripristina nastro predefinito</button>
