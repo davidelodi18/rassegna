@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rassegna — l'edizione del giorno</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;0,6..72,800;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1EEE3; --card:#F8F6EE; --ink:#1A1915; --muted:#6C6A5F;
+    --faint:#9A9789; --rule:#CFCBBC; --rule2:#B7B2A1; --stamp:#8A281C;
+    --shadow:rgba(20,19,16,.25); --veil:rgba(20,19,16,.42); --snip:#43413A;
+  }
+  html[data-theme="night"]{
+    --paper:#16161A; --card:#1E1E23; --ink:#E8E4D9; --muted:#9A968A;
+    --faint:#6B6860; --rule:#33323A; --rule2:#4A4854; --stamp:#D4735F;
+    --shadow:rgba(0,0,0,.5); --veil:rgba(0,0,0,.6); --snip:#B4B0A4;
+  }
+  html[data-theme="night"] .selbar{background:#0E0E11;border-top:1px solid var(--rule);color:var(--ink);}
+  html[data-theme="night"] .toast{background:#0E0E11;color:var(--ink);border:1px solid var(--rule);}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  html,body{transition:background-color .25s ease,color .25s ease;}
+  body{background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 26px 130px;}
+
+  .plate{border-bottom:3px double var(--ink);padding-top:20px;}
+  .plate .top{border-top:1px solid var(--ink);border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center;padding:5px 2px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .plate .name{text-align:center;font-family:'Newsreader',serif;font-weight:800;letter-spacing:-.02em;font-size:clamp(42px,7.5vw,78px);line-height:.9;margin:12px 0 6px;color:var(--ink);}
+  .plate .motto{text-align:center;font-family:'Newsreader',serif;font-style:italic;font-size:15px;color:var(--muted);margin-bottom:12px;}
+
+  /* ---- nastro servizi ---- */
+  :root{--up:#1E6B47;--down:#A32B1C;}
+  html[data-theme="night"]{--up:#5FBF8E;--down:#E0705C;}
+  .tickerwrap{position:relative;}
+  .tickerwrap::after{content:"";position:absolute;right:0;top:0;bottom:1px;width:42px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,var(--paper));}
+  .ticker{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--rule);background:var(--paper);
+    scroll-snap-type:x proximity;}
+  .tk{scroll-snap-align:start;}
+  .ticker::-webkit-scrollbar{display:none;}
+  .tk{flex:0 0 auto;min-width:150px;max-width:280px;padding:10px 18px;border-right:1px solid var(--rule);display:flex;flex-direction:column;justify-content:center;gap:3px;}
+  .tk:first-child{padding-left:2px;}
+  .tk:last-child{border-right:none;}
+  .tk .lb{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);white-space:nowrap;}
+  .tk .vl{font-family:'Newsreader',serif;font-weight:600;font-size:17px;line-height:1.1;display:flex;align-items:baseline;gap:8px;white-space:nowrap;}
+  .tk .dl{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;}
+  .tk .dl.up{color:var(--up);} .tk .dl.dn{color:var(--down);}
+  .tk .hd{font-family:'Newsreader',serif;font-size:13.5px;line-height:1.25;color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;}
+  .nxt{background:none;border:none;padding:2px 0 0;font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+    letter-spacing:.08em;color:var(--faint);align-self:flex-start;}
+  .nxt:hover{color:var(--stamp);}
+  .tk .hd:hover{text-decoration:underline;text-underline-offset:2px;}
+  .tk.wide{min-width:230px;}
+  .tk .err{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--faint);}
+  .tk .sk{height:17px;width:70%;background:var(--rule);border-radius:2px;opacity:.4;}
+  @media (max-width:820px){
+    .tickerwrap::after{display:none;}
+    .ticker{flex-wrap:wrap;overflow-x:visible;}
+    .tk{flex:1 1 46%;min-width:0;max-width:none;padding:9px 12px;border-bottom:1px solid var(--rule);}
+    .tk:nth-child(2n){border-right:none;}
+    .tk.wide{flex:1 1 100%;border-right:none;}
+    .tk .vl{font-size:16px;}
+    .tk .hd{-webkit-line-clamp:2;}
+  }
+
+  .secbar{display:flex;justify-content:center;flex-wrap:wrap;gap:2px;padding:9px 0;border-bottom:1px solid var(--rule);position:sticky;top:0;background:var(--paper);z-index:30;}
+  .secbar button{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;background:none;border:none;color:var(--muted);padding:4px 13px;position:relative;}
+  .secbar button+button::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:1px;height:12px;background:var(--rule);}
+  .secbar button:hover{color:var(--ink);}
+  .secbar button.active{color:var(--stamp);font-weight:600;}
+  .secbar .n{opacity:.5;margin-left:5px;font-size:9.5px;}
+
+  .utility{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;color:var(--faint);}
+  .utility .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .utility .warn{color:var(--stamp);}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .chip-s{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    border:1px solid var(--rule);border-radius:999px;padding:3px 9px;color:var(--muted);background:none;white-space:nowrap;}
+  .chip-s.ok{color:var(--up);border-color:var(--up);}
+  .chip-s.new{color:var(--stamp);border-color:var(--stamp);}
+  .chip-s.bad{color:var(--stamp);border-color:var(--stamp);cursor:pointer;}
+  .chip-s.bad:hover{background:var(--stamp);color:#fff;}
+  .chip-s.live{color:var(--stamp);border-color:var(--stamp);}
+  .ib{background:none;border:1px solid var(--rule);border-radius:5px;padding:5px 9px;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;display:inline-flex;align-items:center;gap:5px;}
+  .ib:hover{border-color:var(--ink);}
+  .ib.sync{border-color:var(--stamp);color:var(--stamp);}
+  .ib.spin svg{animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .avat{width:18px;height:18px;border-radius:50%;border:1px solid var(--rule);}
+
+  .kick{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--stamp);margin-bottom:6px;}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:7px;}
+  .meta .dot{color:var(--rule2);}
+  .meta .letto{color:var(--faint);border:1px solid var(--rule);border-radius:3px;padding:0 5px;font-size:9px;}
+  h1,h2,h3{font-family:'Newsreader',serif;letter-spacing:-.006em;margin:0;}
+  .hl a:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;}
+  .snip{color:var(--snip);font-size:14px;line-height:1.5;margin:7px 0 0;}
+  .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .clamp3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+  .clamp4{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;}
+
+  .acts{display:flex;gap:9px;align-items:center;margin-top:9px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;flex-wrap:wrap;}
+  .acts button{background:none;border:none;padding:0;color:var(--muted);letter-spacing:inherit;}
+  .acts button:hover{color:var(--ink);}
+  .acts .primary{color:var(--stamp);font-weight:600;}
+  .acts .sep{color:var(--rule2);}
+  .acts .on{color:var(--stamp);font-weight:600;}
+  .acts button:disabled{color:var(--faint);cursor:default;}
+
+  .top{display:grid;grid-template-columns:2.05fr 1fr;border-bottom:2px solid var(--ink);}
+  .lead{padding:22px 30px 26px 0;border-right:1px solid var(--rule2);}
+  .lead .kick{font-size:11px;}
+  .lead h1{font-weight:800;font-size:clamp(28px,3.6vw,44px);line-height:1.04;margin-bottom:4px;}
+  .lead .snip{font-size:16px;line-height:1.55;margin-top:10px;}
+  .aside{padding:22px 0 26px 26px;}
+  .aside .h{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);border-bottom:2px solid var(--ink);padding-bottom:6px;margin-bottom:4px;}
+  .brief{padding:12px 0;border-bottom:1px solid var(--rule);}
+  .brief:last-child{border-bottom:none;}
+  .brief h3{font-weight:600;font-size:16px;line-height:1.2;}
+
+  .section{padding:20px 0 4px;border-bottom:1px solid var(--rule);}
+  .sechead{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .sechead button{font-family:'Newsreader',serif;font-weight:700;font-size:19px;color:var(--ink);background:none;border:none;padding:0;letter-spacing:.01em;text-transform:uppercase;}
+  .sechead button:hover{color:var(--stamp);}
+  .sechead .line{flex:1;height:1px;background:var(--rule2);}
+  .sechead .more{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);cursor:pointer;}
+
+  .cols{column-gap:26px;column-rule:1px solid var(--rule);}
+  .cols.c3{column-count:3;}
+  .cols.c2{column-count:2;}
+  .colitem{break-inside:avoid;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--rule);}
+  .colitem:last-child{border-bottom:none;}
+  .colitem h2{font-weight:600;font-size:18px;line-height:1.2;}
+  .colitem .snip{font-size:13px;}
+
+
+  /* ---- immagini ---- */
+  .figure{display:block;position:relative;overflow:hidden;background:var(--rule);border-radius:2px;line-height:0;}
+  .figure img{display:block;width:100%;height:100%;object-fit:cover;}
+
+  html[data-theme="night"] .figure img{filter:brightness(.86) saturate(.92);}
+  
+  .read .figure img{filter:grayscale(1) opacity(.55);}
+
+  .lead .figure{display:block;width:100%;aspect-ratio:16/9;margin-bottom:16px;}
+  .lead .figure img{position:absolute;inset:0;}
+  .lead .figure::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.07);}
+
+  .colitem{display:flex;gap:14px;align-items:flex-start;}
+  .colitem .txt{flex:1;min-width:0;}
+  .colitem .figure{flex:0 0 84px;width:84px;height:84px;margin-top:2px;align-self:flex-start;}
+  .colitem.nopic{display:block;}
+
+  .saveditem .figure{flex:0 0 104px;width:104px;height:104px;}
+
+  .secview .top{grid-template-columns:1fr;}
+  .secview .lead{border-right:none;padding-right:0;}
+
+  .savedbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 0;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+  .savedbar .r{display:flex;gap:8px;}
+
+  .empty{padding:70px 0;text-align:center;color:var(--muted);}
+  .empty b{font-family:'Newsreader',serif;font-size:24px;color:var(--ink);display:block;margin-bottom:8px;}
+
+  .selbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 22px;}}
+  .selbar .txt{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.05em;}
+  .selbar .grp{display:flex;gap:8px;}
+  .selbar button{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;border:1px solid rgba(255,255,255,.35);background:none;color:inherit;border-radius:5px;padding:7px 12px;}
+  .selbar button.go{background:var(--stamp);border-color:var(--stamp);color:#fff;}
+
+  .backdrop{position:fixed;inset:0;background:var(--veil);z-index:60;}}
+  .panel{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:61;background:var(--card);border-left:2px solid var(--ink);display:flex;flex-direction:column;}}
+  .panel header{padding:18px 20px;border-bottom:1px solid var(--rule);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+  .panel header .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--stamp);margin-bottom:6px;}
+  .panel header h3{font-family:'Newsreader',serif;font-weight:600;font-size:19px;margin:0;line-height:1.25;}
+  .panel .x{background:none;border:none;font-size:22px;color:var(--muted);line-height:1;padding:2px 4px;}
+  .panel .content{flex:1;overflow:auto;padding:20px;}
+  .hintline{font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5;}
+  .promptbox{font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:14px;color:var(--ink);}
+  .panel .foot{border-top:1px solid var(--rule);padding:14px 20px;display:flex;gap:8px;}
+  .panel .foot button{flex:1;border-radius:6px;padding:11px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.05em;border:1px solid var(--ink);background:none;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+  .panel .foot button.go{background:var(--stamp);border-color:var(--stamp);color:#fff;}
+
+  .cat{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 18px;}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+    border:1px solid var(--rule);border-radius:999px;padding:6px 12px;background:none;color:var(--muted);transition:.14s;}
+  .chip:hover{border-color:var(--ink);color:var(--ink);}
+  .chip.on{background:var(--stamp);border-color:var(--stamp);color:#fff;}
+  .setlbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--rule);padding-bottom:6px;margin:22px 0 10px;}
+  .setlbl:first-of-type{margin-top:0;}
+  .set textarea{width:100%;font-family:'IBM Plex Mono',monospace;font-size:12.5px;border:1px solid var(--rule);border-radius:6px;padding:9px 11px;background:var(--paper);color:var(--ink);resize:vertical;min-height:240px;line-height:1.5;}
+  .set textarea:focus{outline:none;border-color:var(--ink);}
+  .set .hint{font-size:12px;color:var(--faint);margin:0 0 8px;line-height:1.45;}
+  .set .save{margin-top:20px;background:var(--stamp);color:#fff;border:none;border-radius:6px;padding:11px 18px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;width:100%;}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--paper);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;padding:11px 18px;border-radius:8px;box-shadow:0 6px 24px var(--shadow);}}
+
+  .read h1 a,.read h2 a,.read h3 a{color:var(--muted);}
+  .read .snip{color:var(--faint);}
+
+  @media (max-width:820px){
+    .wrap{padding:0 16px 130px;}
+    .secbar{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -16px;padding:9px 16px;}
+    .secbar::-webkit-scrollbar{display:none;}
+    .secbar button{white-space:nowrap;padding:4px 11px;}
+    .top{grid-template-columns:1fr;}
+    .lead{border-right:none;padding:20px 0 22px;}
+    .aside{padding:16px 0 22px;border-top:1px solid var(--rule);}
+    .cols.c3{column-count:2;}
+  }
+  @media (max-width:540px){
+    .cols.c3,.cols.c2{column-count:1;column-rule:none;}
+    .lead h1{font-size:26px;}
+    .colitem .figure,.saveditem .figure{flex:0 0 72px;width:72px;height:72px;}
+    .colitem{gap:12px;}
+    .acts{gap:8px;font-size:10.5px;}
+    .acts button{padding:2px 0;}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+/* ============================================================
+   INCOLLA QUI LA CONFIG DEL TUO PROGETTO FIREBASE.
+   Se la lasci vuota, l'app funziona lo stesso: solo in locale,
+   senza sincronizzazione tra dispositivi.
+   ============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCGh6T-zT9vRlzekXo-ToxZx2odBzk3Vus",
+  authDomain: "rassegna-25771.firebaseapp.com",
+  projectId: "rassegna-25771",
+  storageBucket: "rassegna-25771.firebasestorage.app",
+  messagingSenderId: "18334211038",
+  appId: "1:18334211038:web:0da7930d296579ff0f5b4f"
+};
+
+var FB = null;
+if (FIREBASE_CONFIG.apiKey) {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    FB = { auth: firebase.auth(), db: firebase.firestore() };
+  } catch (e) { console.error("Firebase init fallita:", e); FB = null; }
+}
+</script>
+
+<script type="text/babel">
+const {useState,useEffect,useMemo,useCallback,useRef} = React;
+
+/* ============================================================
+   PROXY. Se hai un tuo Cloudflare Worker (vedi WORKER.md),
+   incolla qui il suo indirizzo: diventa il primo della lista
+   e i feed smettono di dipendere da servizi pubblici.
+   Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
+   ============================================================ */
+const BUILD = "v15 · 10-07";
+const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
+
+const PROXIES=[
+  ...(MY_PROXY?[u=>MY_PROXY+encodeURIComponent(u)]:[]),
+  // riserve, in ordine di velocità misurata (i morti li ho tolti)
+  u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
+  u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
+  u=>"https://api.allorigins.win/get?url="+encodeURIComponent(u),
+];
+const PROXY_PICK="rassegna_proxy_name";
+
+const CLAUDE_URL="https://claude.ai/new";
+const LS={feeds:"rassegna_feeds_v2", read:"rassegna_read", saved:"rassegna_saved", theme:"rassegna_theme", cache:"rassegna_cache", widgets:"rassegna_widgets"};
+const CACHE_TTL=10*60*1000;   // 10 minuti: sotto questa soglia non ricarico nulla
+const WIDGET_TTL=5*60*1000;
+
+const DEFAULT_WIDGETS=[
+  {type:"quote", arg:"^spx",   label:"S&P 500"},
+  {type:"quote", arg:"eurusd", label:"EUR/USD"},
+  {type:"quote", arg:"btcusd", label:"Bitcoin"},
+  {type:"topic", arg:"Wimbledon", label:"Wimbledon"},
+  {type:"topic", arg:"Serie A", label:"Serie A"},
+  {type:"weather", arg:"Milano", label:"Milano"},
+];
+const G=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=it&gl=IT&ceid=IT:it`;
+const GNEWS=G;
+const MAX_READ=600;
+
+const DEFAULT_FEEDS={
+  economia:{ label:"Economia", urls:[
+    "https://www.ansa.it/sito/notizie/economia/economia_rss.xml",
+    "https://www.repubblica.it/rss/economia/rss2.0.xml",
+  ]},
+  geopolitica:{ label:"Geopolitica", urls:[
+    "https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml",
+    "https://www.repubblica.it/rss/esteri/rss2.0.xml",
+  ]},
+  sport:{ label:"Sport", urls:[
+    "https://www.ansa.it/sito/notizie/sport/sport_rss.xml",
+    "https://www.ansa.it/sito/notizie/sport/calcio/calcio_rss.xml",
+  ]},
+  tech:{ label:"Tech & AI", urls:[
+    "https://www.theverge.com/rss/index.xml",
+    "https://techcrunch.com/feed/",
+    "https://hnrss.org/frontpage",
+  ]},
+  cultura:{ label:"Cultura", urls:[
+    "https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml",
+    "https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml",
+  ]},
+  scienza:{ label:"Scienza", urls:[
+    "https://www.sciencedaily.com/rss/top/science.xml",
+    G("scienza ricerca"),
+  ]},
+  italia:{ label:"Italia", urls:[
+    "https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml",
+    "https://www.repubblica.it/rss/homepage/rss2.0.xml",
+  ]},
+};
+
+/* Macroaree pronte: si attivano/disattivano da ⚙.
+   Per le sezioni di nicchia uso le ricerche di Google News: non hanno URL che spariscono. */
+const CATALOG=[
+  {id:"economia",label:"Economia",urls:["https://www.ansa.it/sito/notizie/economia/economia_rss.xml","https://www.repubblica.it/rss/economia/rss2.0.xml"]},
+  {id:"geopolitica",label:"Geopolitica",urls:["https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml","https://www.repubblica.it/rss/esteri/rss2.0.xml"]},
+  {id:"sport",label:"Sport",urls:["https://www.ansa.it/sito/notizie/sport/sport_rss.xml","https://www.ansa.it/sito/notizie/sport/calcio/calcio_rss.xml"]},
+  {id:"tech",label:"Tech & AI",urls:["https://www.theverge.com/rss/index.xml","https://techcrunch.com/feed/","https://hnrss.org/frontpage"]},
+  {id:"cultura",label:"Cultura",urls:["https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml","https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml"]},
+  {id:"scienza",label:"Scienza",urls:["https://www.sciencedaily.com/rss/top/science.xml",G("scienza ricerca")]},
+  {id:"italia",label:"Italia",urls:["https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml","https://www.repubblica.it/rss/homepage/rss2.0.xml"]},
+  {id:"politica",label:"Politica",urls:["https://www.ansa.it/sito/notizie/politica/politica_rss.xml","https://www.repubblica.it/rss/politica/rss2.0.xml"]},
+  {id:"cronaca",label:"Cronaca",urls:["https://www.ansa.it/sito/notizie/cronaca/cronaca_rss.xml","https://www.repubblica.it/rss/cronaca/rss2.0.xml"]},
+  {id:"libri",label:"Libri",urls:[G("libri recensioni editoria")]},
+  {id:"cinema",label:"Cinema & TV",urls:[G("cinema film serie tv")]},
+  {id:"musica",label:"Musica",urls:[G("musica concerti album")]},
+  {id:"dach",label:"DACH",urls:["https://www.spiegel.de/wirtschaft/index.rss","https://www.tagesschau.de/index~rss2.xml"]},
+  {id:"food",label:"Food Science",urls:["https://www.sciencedaily.com/rss/health_medicine/food.xml",G("scienza alimentare food technology")]},
+  {id:"emilia",label:"Emilia-Romagna",urls:["https://www.ansa.it/emiliaromagna/notizie/emiliaromagna_rss.xml"]},
+  {id:"motori",label:"Motori",urls:["https://www.ansa.it/canale_motori/notizie/motori_rss.xml"]},
+  {id:"salute",label:"Salute",urls:[G("salute medicina"),"https://www.sciencedaily.com/rss/health_medicine.xml"]},
+  {id:"ambiente",label:"Ambiente",urls:[G("ambiente clima energia")]},
+  {id:"mondo_en",label:"Mondo (EN)",urls:["https://feeds.bbci.co.uk/news/world/rss.xml","https://www.theguardian.com/world/rss"]},
+  {id:"ceramica",label:"Ceramica",urls:[G("industria ceramica piastrelle Sassuolo")]},
+];
+
+/* ---------- utils ---------- */
+function stripHtml(h){const d=document.createElement("div");d.innerHTML=h||"";return (d.textContent||d.innerText||"").replace(/\s+/g," ").trim();}
+function timeAgo(d){
+  if(!d||isNaN(d)) return "";
+  const s=(Date.now()-d.getTime())/1000;
+  if(s<60) return "ora"; if(s<3600) return Math.floor(s/60)+" min fa";
+  if(s<86400) return Math.floor(s/3600)+" h fa";
+  const g=Math.floor(s/86400); if(g===1) return "ieri"; if(g<7) return g+" gg fa";
+  return d.toLocaleDateString("it-IT",{day:"2-digit",month:"short"});
+}
+async function withTimeout(promise,ms,ctrl){
+  let t; const timeout=new Promise((_,rej)=>{t=setTimeout(()=>{ctrl&&ctrl.abort();rej(new Error("timeout"));},ms);});
+  try{ return await Promise.race([promise,timeout]); } finally { clearTimeout(t); }
+}
+/* prova i proxy partendo da quello che ha funzionato l'ultima volta */
+function proxyName(i){ try{ return PROXIES[i]("X").split("/")[2]; }catch(e){ return "p"+i; } }
+function proxyOrder(){
+  const idx=PROXIES.map((_,i)=>i);
+  let saved=null;
+  try{ saved=localStorage.getItem(PROXY_PICK); }catch(e){}
+  if(!saved) return idx;
+  const k=idx.findIndex(i=>proxyName(i)===saved);
+  if(k<0) return idx;
+  return [...idx.slice(k),...idx.slice(0,k)];
+}
+async function proxyGet(url,ms=8000){
+  let lastErr=null;
+  for(const i of proxyOrder()){
+    const ctrl=new AbortController();
+    try{
+      const r=await withTimeout(fetch(PROXIES[i](url),{signal:ctrl.signal}),ms,ctrl);
+      if(!r.ok){ lastErr=new Error("HTTP "+r.status); continue; }
+      let t=await r.text();
+      if(!t||t.length<60){ lastErr=new Error("vuoto"); continue; }
+      // pagina di blocco / captcha travestita da risposta valida
+      if(/^\s*<!doctype html/i.test(t) && !/<rss|<feed|<channel/i.test(t)){
+        lastErr=new Error("bloccato dalla testata"); continue;
+      }
+      // gli endpoint tipo /get impacchettano dentro JSON
+      if(t.trim().startsWith("{") && t.includes('"contents"')){
+        try{ const j=JSON.parse(t); if(j.contents) t=j.contents; else {lastErr=new Error("json vuoto"); continue;} }catch(e){ lastErr=e; continue; }
+      }
+      try{ localStorage.setItem(PROXY_PICK,proxyName(i)); }catch(e){}
+      return t;
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr||new Error("tutti i proxy ko");
+}
+async function testProxies(){
+  const target="https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml";  // ANSA non blocca i proxy
+  const out=[];
+  for(let i=0;i<PROXIES.length;i++){
+    const t0=Date.now(); const ctrl=new AbortController();
+    const name=PROXIES[i]("X").split("/")[2];
+    try{
+      const r=await withTimeout(fetch(PROXIES[i](target),{signal:ctrl.signal}),7000,ctrl);
+      let txt=await r.text();
+      if(txt.trim().startsWith("{")&&txt.includes('"contents"')){ try{ txt=JSON.parse(txt).contents||""; }catch(e){} }
+      const isFeed=/<rss|<feed|<channel/i.test(txt);
+      out.push({i,ok:r.ok&&isFeed,ms:Date.now()-t0,name,
+        why: !r.ok?("HTTP "+r.status) : (!isFeed?"non è un feed":"")});
+    }catch(e){ out.push({i,ok:false,ms:Date.now()-t0,name,why:(e.message==="timeout"?"timeout":"irraggiungibile")}); }
+  }
+  return out;
+}
+
+
+/* ---- parsing dei feed ---- */
+function pickImage(it, desc){
+  const tag=n=>it.getElementsByTagName(n);
+  for(const n of ["media:content","media:thumbnail","content","thumbnail"]){
+    for(const el of tag(n)){
+      const u=el.getAttribute&&el.getAttribute("url");
+      const type=el.getAttribute&&(el.getAttribute("type")||el.getAttribute("medium"));
+      if(u && (!type || /image/i.test(type))) return u;
+    }
+  }
+  for(const el of tag("enclosure")){
+    const u=el.getAttribute("url"), t=el.getAttribute("type")||"";
+    if(u && (/image/i.test(t) || /\.(jpe?g|png|webp|avif)(\?|$)/i.test(u))) return u;
+  }
+  const m=(desc||"").match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?m[1]:null;
+}
+function parseFeed(xml,topic){
+  const doc=new DOMParser().parseFromString(xml,"text/xml");
+  let items=[...doc.querySelectorAll("item")]; let atom=false;
+  if(items.length===0){items=[...doc.querySelectorAll("entry")];atom=true;}
+  const chan=doc.querySelector("channel > title")?.textContent||doc.querySelector("feed > title")?.textContent||"";
+  return items.map(it=>{
+    const title=stripHtml(it.querySelector("title")?.textContent||"");
+    let link="";
+    if(atom){const ls=[...it.querySelectorAll("link")];link=(ls.find(x=>x.getAttribute("rel")==="alternate")||ls[0])?.getAttribute("href")||"";}
+    else{link=it.querySelector("link")?.textContent||"";}
+    const rawDesc=it.querySelector("description")?.textContent||it.querySelector("summary")?.textContent||it.querySelector("content")?.textContent||"";
+    const ds=it.querySelector("pubDate")?.textContent||it.querySelector("updated")?.textContent||it.querySelector("published")?.textContent||"";
+    let src=chan; try{if(!src&&link)src=new URL(link.trim()).hostname.replace("www.","");}catch(e){}
+    let img=null; try{ img=pickImage(it,rawDesc); }catch(e){}
+    if(img && img.startsWith("http://")) img="https://"+img.slice(7);
+    return {title,link:(link||"").trim(),snippet:stripHtml(rawDesc).slice(0,280),date:ds?new Date(ds):null,source:src,topic,img};
+  }).filter(a=>a.title&&a.link);
+}
+async function fetchArticleText(url){
+  try{
+    const html=await proxyGet(url,9000);
+    const doc=new DOMParser().parseFromString(html,"text/html");
+    doc.querySelectorAll("script,style,nav,header,footer,aside,form,figure").forEach(e=>e.remove());
+    const ps=[...doc.querySelectorAll("article p, main p, p")].map(p=>p.textContent.trim()).filter(t=>t.length>45);
+    return [...new Set(ps)].join("\n").slice(0,6500);
+  }catch(e){return "";}
+}
+async function copyText(t){
+  try{await navigator.clipboard.writeText(t);return true;}
+  catch(e){
+    try{const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";
+      document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");document.body.removeChild(ta);return ok;}
+    catch(e2){return false;}
+  }
+}
+function singlePrompt(a,body){
+  const src=body&&body.length>200?body:(a.snippet||"(solo titolo disponibile)");
+  return `Sintetizza questo articolo in 3 punti: cosa è successo, perché conta, dato chiave. Tono asciutto, niente fronzoli.\n\nTitolo: ${a.title}\nFonte: ${a.source}\nLink: ${a.link}\n\nTesto:\n${src}`;
+}
+function digestPrompt(arts){
+  const list=arts.map((a,i)=>`${i+1}. ${a.title} — ${a.source}\n   ${a.link}\n   ${a.snippet}`).join("\n\n");
+  return `Fammi un digest unico di questi articoli, max 5 bullet, collegando i temi. Tono asciutto.\n\n${list}`;
+}
+
+/* ---- widget: dati ---- */
+const COINS={btcusd:"bitcoin",ethusd:"ethereum",solusd:"solana",xrpusd:"ripple",adausd:"cardano"};
+const FIAT=/^([a-z]{3})([a-z]{3})$/i;
+/* alias comodi -> simboli Yahoo */
+const YAHOO={
+  "^spx":"^GSPC", "^gspc":"^GSPC", "^ndq":"^IXIC", "^ixic":"^IXIC", "^dji":"^DJI",
+  "^dax":"^GDAXI", "^gdaxi":"^GDAXI", "^ftsemib":"FTSEMIB.MI", "ftsemib":"FTSEMIB.MI",
+  "^smi":"^SSMI", "^stoxx50":"^STOXX50E", "^ftse":"^FTSE", "^n225":"^N225",
+  "xauusd":"GC=F", "oro":"GC=F", "brent":"BZ=F", "petrolio":"CL=F",
+};
+function toYahoo(sym){
+  const k=sym.toLowerCase();
+  if(YAHOO[k]) return YAHOO[k];
+  const m=k.match(/^([a-z0-9.\-]+)\.(it|us|de|uk|fr)$/);
+  if(m){ const suf={it:".MI",de:".DE",uk:".L",fr:".PA",us:""}[m[2]]; return m[1].toUpperCase()+suf; }
+  return sym.toUpperCase();
+}
+
+async function fetchQuote(sym){
+  const s0=sym.toLowerCase();
+
+  // cripto: CoinGecko, diretto
+  if(COINS[s0]){
+    const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${COINS[s0]}&vs_currencies=usd&include_24hr_change=true`);
+    const j=await r.json(); const d=j[COINS[s0]];
+    if(!d) throw new Error("no data");
+    return {value:d.usd.toLocaleString("it-IT",{maximumFractionDigits:0}), pct:d.usd_24h_change};
+  }
+
+  // valute: Frankfurter (BCE), diretto
+  const f=s0.match(FIAT);
+  if(f && !s0.startsWith("^") && f[1]!==f[2] && !YAHOO[s0]){
+    const b=f[1].toUpperCase(), q=f[2].toUpperCase();
+    const r=await fetch(`https://api.frankfurter.dev/v1/latest?base=${b}&symbols=${q}`);
+    const j=await r.json(); const last=j.rates?.[q];
+    if(!last) throw new Error("no data");
+    let pct=0;
+    try{
+      const d=new Date(); d.setDate(d.getDate()-7);
+      const r2=await fetch(`https://api.frankfurter.dev/v1/${d.toISOString().slice(0,10)}..?base=${b}&symbols=${q}`);
+      const j2=await r2.json();
+      const days=Object.keys(j2.rates||{}).sort();
+      const prev=j2.rates[days[days.length-2]]?.[q];
+      if(prev) pct=((last-prev)/prev)*100;
+    }catch(e){}
+    return {value:last.toLocaleString("it-IT",{minimumFractionDigits:4,maximumFractionDigits:4}), pct};
+  }
+
+  // indici e azioni: Yahoo Finance via proxy (Stooq blocca i datacenter)
+  const y=toYahoo(s0);
+  try{
+    const txt=await proxyGet(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(y)}?range=5d&interval=1d`,9000);
+    const j=JSON.parse(txt);
+    const meta=j?.chart?.result?.[0]?.meta;
+    if(!meta) throw new Error("no data");
+    const last=meta.regularMarketPrice;
+    const prev=meta.chartPreviousClose ?? meta.previousClose;
+    if(!isFinite(last)) throw new Error("no price");
+    const pct=isFinite(prev)&&prev?((last-prev)/prev)*100:0;
+    const dec=Math.abs(last)<10?4:2;
+    return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct};
+  }catch(e){
+    // ripiego su Stooq
+    const csv=await proxyGet(`https://stooq.com/q/d/l/?s=${encodeURIComponent(s0)}&i=d`,9000);
+    const rows=csv.trim().split("\n").filter(r=>/^\d{4}-\d{2}-\d{2},/.test(r));
+    if(rows.length<2) throw new Error("no data");
+    const close=r=>parseFloat(r.split(",")[4]);
+    const last=close(rows[rows.length-1]), prev=close(rows[rows.length-2]);
+    if(!isFinite(last)||!isFinite(prev)) throw new Error("bad data");
+    const dec=Math.abs(last)<10?4:2;
+    return {value:last.toLocaleString("it-IT",{minimumFractionDigits:dec,maximumFractionDigits:dec}), pct:((last-prev)/prev)*100};
+  }
+}
+async function fetchTopic(q){
+  const xml=await proxyGet(GNEWS(q),8000);
+  const items=parseFeed(xml,"topic").slice(0,6);
+  if(!items.length) throw new Error("vuoto");
+  return items.map(i=>({title:i.title.replace(/\s+-\s+[^-]+$/,"").trim(), link:i.link, date:i.date}));
+}
+async function fetchWeather(city){
+  const g=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=it`);
+  const gj=await g.json();
+  const loc=gj.results&&gj.results[0]; if(!loc) throw new Error("città?");
+  const w=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`);
+  const wj=await w.json();
+  const c=wj.current||{}, d=wj.daily||{};
+  return {temp:Math.round(c.temperature_2m), code:c.weather_code, max:Math.round(d.temperature_2m_max?.[0]), min:Math.round(d.temperature_2m_min?.[0]), name:loc.name};
+}
+const WMO=c=>{
+  if(c===0) return "☀"; if(c<=2) return "⛅"; if(c===3) return "☁";
+  if(c<=48) return "🌫"; if(c<=57) return "🌦"; if(c<=67) return "🌧";
+  if(c<=77) return "🌨"; if(c<=82) return "🌧"; if(c<=86) return "🌨";
+  return "⛈";
+};
+function parseWidgets(t){
+  return t.split("\n").map(l=>l.trim()).filter(Boolean).filter(l=>!l.startsWith("#")).map(l=>{
+    const m=l.match(/^(quote|topic|weather)\s+(\S+)(?:\s+(.*))?$/i);
+    if(!m) return null;
+    return {type:m[1].toLowerCase(), arg:m[2], label:(m[3]||m[2]).trim()};
+  }).filter(Boolean);
+}
+function widgetsToText(ws){ return ws.map(w=>`${w.type} ${w.arg}${w.label&&w.label!==w.arg?" "+w.label:""}`).join("\n"); }
+
+function ser(a){return {...a,date:a.date?a.date.toISOString():null};}
+function deser(a){return {...a,date:a.date?new Date(a.date):null};}
+function readCache(){
+  try{ const c=JSON.parse(localStorage.getItem(LS.cache)); if(!c||!c.articles) return null;
+       return {at:c.at, articles:c.articles.map(deser)}; }catch(e){ return null; }
+}
+function writeCache(articles){
+  try{ localStorage.setItem(LS.cache,JSON.stringify({at:Date.now(),articles:articles.slice(0,300).map(ser)})); }catch(e){}
+}
+
+/* unione salvati per link, il più recente vince */
+function mergeSaved(a,b){
+  const m=new Map();
+  [...(a||[]),...(b||[])].forEach(x=>{ const p=m.get(x.link); if(!p||(x.savedAt||0)>(p.savedAt||0)) m.set(x.link,x); });
+  return [...m.values()].sort((x,y)=>(y.savedAt||0)-(x.savedAt||0));
+}
+
+function Ticker({widgets}){
+  const [data,setData]=useState({});
+  const [rot,setRot]=useState(0);
+
+  useEffect(()=>{
+    let dead=false;
+    const key="rassegna_wcache";
+    let cache={}; try{cache=JSON.parse(sessionStorage.getItem(key))||{};}catch(e){}
+    widgets.forEach(async(w,i)=>{
+      const id=w.type+":"+w.arg;
+      if(cache[id] && Date.now()-cache[id].at<WIDGET_TTL){ setData(d=>({...d,[id]:cache[id].v})); return; }
+      try{
+        let v;
+        if(w.type==="quote") v=await fetchQuote(w.arg);
+        else if(w.type==="topic") v=await fetchTopic(w.arg);
+        else v=await fetchWeather(w.arg);
+        if(dead) return;
+        setData(d=>({...d,[id]:v}));
+        cache[id]={at:Date.now(),v}; try{sessionStorage.setItem(key,JSON.stringify(cache));}catch(e){}
+      }catch(e){ console.warn("[widget]",w.type,w.arg,e.message||e); if(!dead) setData(d=>({...d,[id]:{err:true,why:e.message||"errore"}})); }
+    });
+    return ()=>{dead=true;};
+  },[widgets]);
+
+  // niente rotazione automatica: il titolo cambia solo se lo chiedi tu
+
+  if(!widgets.length) return null;
+  return (
+    <div className="tickerwrap"><div className="ticker">
+      {widgets.map((w,i)=>{
+        const id=w.type+":"+w.arg, v=data[id];
+        const wide=w.type==="topic";
+        return (
+          <div className={"tk"+(wide?" wide":"")} key={id+i}>
+            <div className="lb">{w.label}</div>
+            {!v && <div className="sk"></div>}
+            {v&&v.err && <div className="err" title={v.why} style={{cursor:"help"}}>n/d</div>}
+            {v&&!v.err&&w.type==="quote" && (
+              <div className="vl">{v.value}
+                <span className={"dl "+(v.pct>=0?"up":"dn")}>{v.pct>=0?"▲":"▼"} {Math.abs(v.pct).toFixed(2)}%</span>
+              </div>
+            )}
+            {v&&!v.err&&w.type==="weather" && (
+              <div className="vl">{WMO(v.code)} {v.temp}°
+                <span className="dl" style={{color:"var(--faint)"}}>{v.min}° / {v.max}°</span>
+              </div>
+            )}
+            {v&&!v.err&&w.type==="topic" && v.length>0 && (
+              <>
+                <a className="hd" href={v[rot%v.length].link} target="_blank" rel="noopener">
+                  {v[rot%v.length].title}
+                </a>
+                {v.length>1 && (
+                  <button className="nxt" onClick={()=>setRot(r=>r+1)} title="Titolo successivo">
+                    {(rot%v.length)+1}/{v.length} ›
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div></div>
+  );
+}
+
+function App(){
+  useEffect(()=>{ console.log("%c[Rassegna] "+BUILD,"color:#8A281C;font-weight:bold","· proxy:",MY_PROXY||"solo pubblici"); },[]);
+  const [feeds,setFeeds]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.feeds))||DEFAULT_FEEDS}catch{return DEFAULT_FEEDS}});
+  const [read,setRead]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem(LS.read))||[])}catch{return new Set()}});
+  const [saved,setSaved]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.saved))||[]}catch{return []}});
+  const [widgets,setWidgets]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.widgets))||DEFAULT_WIDGETS}catch{return DEFAULT_WIDGETS}});
+  const [theme,setTheme]=useState(()=>localStorage.getItem(LS.theme)|| (window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"night":"day"));
+
+  const cached=useRef(readCache());
+  const [articles,setArticles]=useState(()=>cached.current?cached.current.articles:[]);
+  const articlesRef=useRef([]);
+  useEffect(()=>{articlesRef.current=articles;},[articles]);
+  const [fresh,setFresh]=useState(0);
+  const [loading,setLoading]=useState(false);
+  const [failed,setFailed]=useState([]);
+  const [updated,setUpdated]=useState(()=>cached.current?new Date(cached.current.at):null);
+  const [tab,setTab]=useState("all");
+  const [sel,setSel]=useState(new Set());
+  const [panel,setPanel]=useState(null);
+  const [settings,setSettings]=useState(false);
+  const [toast,setToast]=useState("");
+  const [busy,setBusy]=useState(null);
+  const [showFails,setShowFails]=useState(false);
+
+  const [user,setUser]=useState(null);
+  const [syncing,setSyncing]=useState(false);
+  const remote=useRef(false);   // true mentre applico dati dal cloud
+  const now=new Date();
+  const order=Object.keys(feeds);
+  const flash=m=>{setToast(m);setTimeout(()=>setToast(""),2600);};
+
+  useEffect(()=>{document.documentElement.setAttribute("data-theme",theme);localStorage.setItem(LS.theme,theme);},[theme]);
+
+  /* ---------- Firebase ---------- */
+  useEffect(()=>{
+    if(!FB) return;
+    return FB.auth.onAuthStateChanged(u=>setUser(u||null));
+  },[]);
+
+  // listener sul documento dell'utente
+  useEffect(()=>{
+    if(!FB||!user) return;
+    setSyncing(true);
+    const ref=FB.db.collection("rassegna").doc(user.uid);
+    const unsub=ref.onSnapshot(snap=>{
+      setSyncing(false);
+      if(!snap.exists){ pushCloud(true); return; }
+      const d=snap.data()||{};
+      remote.current=true;
+      const ms=mergeSaved(saved,d.saved);
+      setSaved(ms); localStorage.setItem(LS.saved,JSON.stringify(ms));
+      const mr=new Set([...(d.read||[]),...read]);
+      setRead(mr); localStorage.setItem(LS.read,JSON.stringify([...mr].slice(-MAX_READ)));
+      if(d.feeds&&Object.keys(d.feeds).length){ setFeeds(d.feeds); localStorage.setItem(LS.feeds,JSON.stringify(d.feeds)); }
+      if(Array.isArray(d.widgets)&&d.widgets.length){ setWidgets(d.widgets); localStorage.setItem(LS.widgets,JSON.stringify(d.widgets)); }
+      if(d.theme) setTheme(d.theme);
+      setTimeout(()=>{remote.current=false;},0);
+    },err=>{ setSyncing(false); console.error("[firestore]",err.code,err.message,err);
+      flash(err.code==="permission-denied"?"Regole Firestore da pubblicare":"Sync non riuscita: "+(err.code||"")); });
+    return unsub;
+  },[user]); // eslint-disable-line
+
+  const pushCloud=useCallback(async(force)=>{
+    if(!FB||!FB.auth.currentUser) return;
+    if(remote.current&&!force) return;
+    try{
+      await FB.db.collection("rassegna").doc(FB.auth.currentUser.uid).set({
+        saved, read:[...read].slice(-MAX_READ), feeds, widgets, theme, updatedAt:Date.now(),
+      },{merge:true});
+    }catch(e){ console.error(e); }
+  },[saved,read,feeds,widgets,theme]);
+
+  // scrittura debounced a ogni cambiamento locale
+  useEffect(()=>{
+    if(!FB||!user||remote.current) return;
+    const t=setTimeout(()=>pushCloud(false),700);
+    return ()=>clearTimeout(t);
+  },[saved,read,feeds,widgets,theme,user]); // eslint-disable-line
+
+  const AUTH_ERR={
+    "auth/unauthorized-domain":"Dominio non autorizzato: aggiungilo in Authentication → Settings",
+    "auth/operation-not-allowed":"Google non abilitato in Sign-in method",
+    "auth/popup-closed-by-user":"Hai chiuso la finestra di Google",
+    "auth/cancelled-popup-request":"Richiesta annullata, riprova",
+    "auth/network-request-failed":"Rete non raggiungibile",
+    "auth/invalid-api-key":"apiKey errata nel file",
+    "auth/configuration-not-found":"Authentication non inizializzato nella console",
+    "auth/web-storage-unsupported":"Disattiva la navigazione privata per il login",
+    "auth/operation-not-supported-in-this-environment":"Apri il sito in Safari o Chrome, non dentro un'altra app",
+  };
+
+  // Il redirect si rompe quando authDomain sta su un dominio diverso (storage partitioning
+  // di Safari/Chrome). Quindi: popup ovunque, redirect solo come ultima spiaggia.
+  useEffect(()=>{
+    if(!FB) return;
+    FB.auth.getRedirectResult()
+      .then(res=>{ if(res&&res.user) flash("Collegato — i salvati ti seguono"); })
+      .catch(e=>{ console.error("[auth-redirect]",e.code,e.message); });
+  },[]); // eslint-disable-line
+
+  const signIn=async()=>{
+    if(!FB){ flash("Firebase non configurato"); return; }
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:"select_account"});
+    try{
+      await FB.auth.signInWithPopup(provider);
+      flash("Collegato — i salvati ti seguono");
+    }catch(e){
+      console.error("[auth]",e.code,e.message,e);
+      if(e.code==="auth/popup-closed-by-user"||e.code==="auth/cancelled-popup-request"){
+        flash("Login annullato"); return;
+      }
+      if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment"){
+        flash("Popup bloccato, provo col redirect…");
+        try{ await FB.auth.signInWithRedirect(provider); return; }catch(e2){ console.error(e2); }
+      }
+      flash(AUTH_ERR[e.code] || ("Errore: "+(e.code||e.message)));
+    }
+  };
+  const signOut=async()=>{ await FB.auth.signOut(); flash("Scollegato — resti in locale"); };
+
+  /* ---------- feeds ---------- */
+  const load=useCallback(async(force)=>{
+    // cache fresca: non ricarico niente
+    const c=readCache();
+    if(!force && c && Date.now()-c.at < CACHE_TTL && c.articles.length){
+      setArticles(c.articles); setUpdated(new Date(c.at)); return;
+    }
+    setLoading(true); setFailed([]); setFresh(0);
+    const jobs=[]; Object.entries(feeds).forEach(([tid,g])=>g.urls.forEach(u=>jobs.push({tid,u})));
+    const fails=[],all=[];
+
+    // le notizie già a schermo restano finché il nuovo carico non è completo
+    const prev=articlesRef.current;
+    const prevLinks=new Set(prev.map(a=>a.link));
+
+    const dedupeSort=list=>{
+      const sorted=[...list].sort((a,b)=>(b.date?.getTime()||0)-(a.date?.getTime()||0));
+      const seen=new Set(),dd=[];
+      for(const a of sorted){ if(seen.has(a.link))continue; seen.add(a.link); dd.push(a); }
+      return dd;
+    };
+
+    // Se la pagina è già piena, NON tocco nulla finché non ho finito: niente titoli che
+    // scivolano mentre leggi. Disegno progressivo solo al primo caricamento (schermo vuoto).
+    const firstLoad = prev.length===0;
+    let pending=false;
+    const flush=()=>{
+      pending=false;
+      if(firstLoad) setArticles(dedupeSort(all));
+    };
+    const schedule=()=>{ if(!firstLoad) return; if(pending) return; pending=true; setTimeout(flush,220); };
+
+    let cursor=0;
+    const worker=async()=>{
+      while(cursor<jobs.length){
+        const j=jobs[cursor++];
+        let done=false, lastWhy=null;
+        for(let attempt=0;attempt<2&&!done;attempt++){
+          try{
+            const items=parseFeed(await proxyGet(j.u, attempt===0?7000:11000), j.tid);
+            if(!items.length) throw new Error("nessun articolo");
+            all.push(...items); done=true; schedule();
+          }
+          catch(e){ lastWhy=e.message||"errore"; if(attempt===0) await new Promise(r=>setTimeout(r,400)); }
+        }
+        if(!done) fails.push({url:j.u, topic:j.tid, why:lastWhy||"errore"});
+      }
+    };
+    await Promise.all([worker(),worker(),worker(),worker(),worker()]);
+
+    const dd=dedupeSort(all);
+    if(dd.length){
+      // carico riuscito: tengo il nuovo elenco, ma non butto via i pezzi che stavi leggendo
+      const merged=dedupeSort([...dd, ...prev.filter(a=>Date.now()-(a.date?.getTime()||0) < 36*3600*1000)]);
+      setArticles(merged);
+      writeCache(merged);
+      setFresh(dd.filter(a=>!prevLinks.has(a.link)).length);
+    } else {
+      // tutto fallito: resto su quello che c'era, senza schermata vuota
+      setArticles(prev);
+    }
+    setFailed(fails); setUpdated(new Date()); setLoading(false);
+  },[feeds]);
+  const first=useRef(true);
+  useEffect(()=>{ load(!first.current); first.current=false; },[feeds]); // eslint-disable-line
+  useEffect(()=>{window.scrollTo({top:0});},[tab]);
+
+  const counts=useMemo(()=>{const c={all:articles.length};order.forEach(t=>c[t]=articles.filter(a=>a.topic===t).length);return c;},[articles,feeds]);
+
+  const markRead=l=>setRead(p=>{const n=new Set(p);n.add(l);localStorage.setItem(LS.read,JSON.stringify([...n].slice(-MAX_READ)));return n;});
+  const toggleSel=l=>setSel(p=>{const n=new Set(p);n.has(l)?n.delete(l):n.add(l);return n;});
+  const isSaved=l=>saved.some(x=>x.link===l);
+  const persistSaved=arr=>{setSaved(arr);localStorage.setItem(LS.saved,JSON.stringify(arr));};
+  const toggleSave=a=>{
+    if(isSaved(a.link)){ persistSaved(saved.filter(x=>x.link!==a.link)); flash("Rimosso da Leggi dopo"); }
+    else{ const {title,link,snippet,source,topic,img}=a;
+      persistSaved([{title,link,snippet:snippet||"",source:source||"",topic:topic||"",img:img||null,savedAt:Date.now(),date:a.date?new Date(a.date).toISOString():null},...saved]);
+      flash("Salvato in Leggi dopo"); }
+  };
+  const clearSaved=()=>{ if(confirm("Svuotare la lista Leggi dopo?")) persistSaved([]); };
+  const openArticle=a=>{markRead(a.link);window.open(a.link,"_blank","noopener");};
+
+  const copySingle=async a=>{
+    markRead(a.link);setBusy(a.link);
+    const body=await fetchArticleText(a.link);setBusy(null);
+    const text=singlePrompt(a,body);const ok=await copyText(text);
+    setPanel({title:a.title,text});flash(ok?"Copiato — incolla in Claude":"Copia manuale dal riquadro");
+  };
+  const copyDigest=async()=>{
+    const pool=[...articles]; saved.forEach(s0=>{if(!pool.some(x=>x.link===s0.link))pool.push({...s0,date:s0.date?new Date(s0.date):null});});
+    const arts=pool.filter(a=>sel.has(a.link)); if(!arts.length) return;
+    arts.forEach(a=>markRead(a.link));
+    const text=digestPrompt(arts); const ok=await copyText(text);
+    setPanel({title:`Digest — ${arts.length} articoli`,text}); setSel(new Set());
+    flash(ok?"Digest copiato — incolla in Claude":"Copia manuale dal riquadro");
+  };
+  const recopy=async()=>{if(panel){const ok=await copyText(panel.text);flash(ok?"Ricopiato":"Copia manuale");}};
+
+  /* ---------- pezzi UI ---------- */
+  const Figure=({a,cls=""})=>{
+    const [ok,setOk]=useState(true);
+    if(!a.img||!ok) return null;
+    return (
+      <a className={"figure "+cls} href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>
+        <img src={a.img} alt="" loading="lazy" referrerPolicy="no-referrer" onError={()=>setOk(false)}/>
+      </a>
+    );
+  };
+  const Meta=({a})=>(
+    <div className="meta">
+      <span style={{color:"var(--stamp)"}}>{a.source||feeds[a.topic]?.label}</span>
+      {a.date&&<span className="dot">·</span>}{a.date&&<span>{timeAgo(a.date)}</span>}
+      {read.has(a.link)&&<span className="letto">letto</span>}
+    </div>
+  );
+  const Acts=({a,full=true})=>(
+    <div className="acts">
+      <button className="primary" disabled={busy===a.link} onClick={()=>copySingle(a)}>{busy===a.link?"…":"Sintesi"}</button>
+      {full&&<span className="sep">·</span>}
+      {full&&<button onClick={()=>openArticle(a)}>Apri ↗</button>}
+      {full&&<span className="sep">·</span>}
+      {full&&<button className={sel.has(a.link)?"on":""} onClick={()=>toggleSel(a.link)}>{sel.has(a.link)?"✓ digest":"+ digest"}</button>}
+      <span className="sep">·</span>
+      <button className={isSaved(a.link)?"on":""} onClick={()=>toggleSave(a)}>{isSaved(a.link)?"★ salvato":"☆ dopo"}</button>
+    </div>
+  );
+  const Lead=({a})=>(
+    <div className={"lead"+(read.has(a.link)?" read":"")}>
+      <Figure a={a}/>
+      <div className="kick">{feeds[a.topic]?.label||"Notizia"}</div>
+      <h1 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h1>
+      {a.snippet&&<p className="snip clamp4">{a.snippet}</p>}
+      <Meta a={a}/><Acts a={a}/>
+    </div>
+  );
+  const Brief=({a})=>(
+    <div className={"brief"+(read.has(a.link)?" read":"")}>
+      <h3 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h3>
+      <Meta a={a}/><Acts a={a} full={false}/>
+    </div>
+  );
+  const Col=({a})=>(
+    <div className={"colitem"+(read.has(a.link)?" read":"")+(a.img?"":" nopic")}>
+      <div className="txt">
+        <div className="kick">{feeds[a.topic]?.label}</div>
+        <h2 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h2>
+        {a.snippet&&<p className="snip clamp2">{a.snippet}</p>}
+        <Meta a={a}/><Acts a={a}/>
+      </div>
+      <Figure a={a}/>
+    </div>
+  );
+
+  const front=useMemo(()=>{
+    if(!articles.length) return null;
+    const lead=articles[0], aside=articles.slice(1,8);
+    const used=new Set([lead.link,...aside.map(a=>a.link)]);
+    const sections=order.map(t=>({t,label:feeds[t]?.label,items:articles.filter(a=>a.topic===t&&!used.has(a.link)).slice(0,6)})).filter(s=>s.items.length);
+    return {lead,aside,sections};
+  },[articles,feeds]);
+  const sectionArts=useMemo(()=>(tab==="all"||tab==="saved")?[]:articles.filter(a=>a.topic===tab),[articles,tab]);
+
+  return (
+    <div className="wrap">
+      <div className="plate">
+        <div className="top">
+          <span>Edizione del {now.toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"})}</span>
+          <span>{now.toLocaleDateString("it-IT",{weekday:"long"})}</span>
+        </div>
+        <div className="name">Rassegna</div>
+        <div className="motto">{theme==="day"?"l'edizione del giorno, in due minuti":"edizione della sera"}</div>
+      </div>
+
+      <Ticker widgets={widgets}/>
+
+      <div className="secbar">
+        <button className={tab==="all"?"active":""} onClick={()=>setTab("all")}>Prima pagina</button>
+        <button className={tab==="saved"?"active":""} onClick={()=>setTab("saved")}>★ Da leggere{saved.length>0&&<span className="n">{saved.length}</span>}</button>
+        {order.map(t=>(
+          <button key={t} className={tab===t?"active":""} onClick={()=>setTab(t)}>{feeds[t].label}<span className="n">{counts[t]||0}</span></button>
+        ))}
+      </div>
+
+      <div className="utility">
+        <span className="chips">
+          {loading && <span className="chip-s live">aggiorno…</span>}
+          {!loading && updated && <span className="chip-s">{updated.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})}</span>}
+          <span className="chip-s">{articles.length} notizie</span>
+          {fresh>0 && !loading && <span className="chip-s new">{fresh} nuove</span>}
+          {failed.length>0 && (
+            <button className="chip-s bad" onClick={()=>setShowFails(v=>!v)}>{failed.length} feed ko</button>
+          )}
+          {user && <span className="chip-s ok">sync</span>}
+          {FB && !user && <span className="chip-s">offline</span>}
+        </span>
+        <span className="r">
+          {FB && !user && <button className="ib sync" onClick={signIn}>⇅ Sincronizza</button>}
+          {FB && user && (
+            <button className="ib" onClick={signOut} title={user.email||""}>
+              {user.photoURL&&<img className="avat" src={user.photoURL} alt=""/>}Esci
+            </button>
+          )}
+          <button className={"ib"+(loading?" spin":"")} onClick={()=>load(true)}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>{loading?"…":"Aggiorna"}
+          </button>
+          <button className="ib" onClick={()=>setTheme(t=>t==="day"?"night":"day")}>{theme==="day"?"☾ Sera":"☀ Mattina"}</button>
+          <button className="ib" onClick={()=>setSettings(true)}>⚙ Fonti</button>
+        </span>
+      </div>
+
+      {showFails && failed.length>0 && (
+        <div style={{border:"1px solid var(--rule)",borderRadius:8,padding:"12px 14px",margin:"10px 0",background:"var(--card)"}}>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,letterSpacing:".12em",textTransform:"uppercase",color:"var(--stamp)",marginBottom:8}}>Feed che non rispondono</div>
+          {failed.map((f,i)=>(
+            <div key={i} style={{fontSize:12,color:"var(--muted)",marginBottom:5,wordBreak:"break-all",lineHeight:1.4}}>
+              <span style={{color:"var(--ink)"}}>{feeds[f.topic]?.label||f.topic}</span> — {f.url}
+              <span style={{color:"var(--stamp)"}}> ({f.why})</span>
+            </div>
+          ))}
+          <div style={{fontSize:12,color:"var(--faint)",marginTop:8}}>Copiali e toglili da ⚙ → Fonti, oppure lasciali: l'app li salta e usa gli altri.</div>
+        </div>
+      )}
+
+      {tab==="all" && (
+        <>
+          {!loading && !front && <div className="empty"><b>Nessuna notizia</b>Aggiorna o controlla i feed in ⚙.</div>}
+          {front && (
+            <>
+              <div className="top">
+                <Lead a={front.lead}/>
+                <div className="aside">
+                  <div className="h">Ultime</div>
+                  {front.aside.map(a=><Brief key={a.link} a={a}/>)}
+                </div>
+              </div>
+              {front.sections.map(s=>(
+                <div className="section" key={s.t}>
+                  <div className="sechead">
+                    <button onClick={()=>setTab(s.t)}>{s.label}</button>
+                    <span className="line"></span>
+                    <span className="more" onClick={()=>setTab(s.t)}>tutte →</span>
+                  </div>
+                  <div className={"cols "+(s.items.length>=3?"c3":"c2")}>
+                    {s.items.map(a=><Col key={a.link} a={a}/>)}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
+
+      {tab==="saved" && (
+        <div className="secview">
+          {saved.length===0 && <div className="empty"><b>Niente da leggere dopo</b>Metti da parte un articolo con <span className="mono" style={{color:"var(--stamp)"}}>☆ dopo</span>: lo ritrovi qui, anche domani.</div>}
+          {saved.length>0 && (
+            <>
+              <div className="savedbar">
+                <span>{saved.length} articoli messi da parte{user?" · sincronizzati":" · solo su questo browser"}</span>
+                <span className="r">
+                  <button className="ib" onClick={()=>{setSel(new Set(saved.map(a=>a.link)));flash("Tutti selezionati per il digest");}}>Seleziona tutti</button>
+                  <button className="ib" onClick={clearSaved}>Svuota</button>
+                </span>
+              </div>
+              <div className="section" style={{borderTop:"2px solid var(--ink)",paddingTop:20}}>
+                <div className="cols c2">
+                  {saved.map(a=>{
+                    const art={...a,date:a.date?new Date(a.date):null};
+                    return (
+                      <div className={"colitem saveditem"+(read.has(a.link)?" read":"")+(a.img?"":" nopic")} key={a.link}>
+                        <div className="txt">
+                        <div className="kick">{feeds[a.topic]?.label||"Salvato"}</div>
+                        <h2 className="hl"><a href={a.link} target="_blank" rel="noopener" onClick={()=>markRead(a.link)}>{a.title}</a></h2>
+                        {a.snippet&&<p className="snip clamp3">{a.snippet}</p>}
+                        <div className="meta">
+                          <span style={{color:"var(--stamp)"}}>{a.source}</span>
+                          <span className="dot">·</span><span>salvato {timeAgo(new Date(a.savedAt))}</span>
+                          {read.has(a.link)&&<span className="letto">letto</span>}
+                        </div>
+                        <div className="acts">
+                          <button className="primary" disabled={busy===a.link} onClick={()=>copySingle(art)}>{busy===a.link?"…":"Sintesi"}</button>
+                          <span className="sep">·</span>
+                          <button onClick={()=>openArticle(art)}>Apri ↗</button>
+                          <span className="sep">·</span>
+                          <button className={sel.has(a.link)?"on":""} onClick={()=>toggleSel(a.link)}>{sel.has(a.link)?"✓ digest":"+ digest"}</button>
+                          <span className="sep">·</span>
+                          <button onClick={()=>toggleSave(art)}>rimuovi</button>
+                        </div>
+                        </div>
+                        <Figure a={art}/>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab!=="all" && tab!=="saved" && (
+        <div className="secview">
+          {!loading && sectionArts.length===0 && <div className="empty"><b>Sezione vuota</b>Nessuna notizia qui adesso.</div>}
+          {sectionArts.length>0 && (
+            <>
+              <div className="top"><Lead a={sectionArts[0]}/></div>
+              <div className="section"><div className="cols c3">{sectionArts.slice(1).map(a=><Col key={a.link} a={a}/>)}</div></div>
+            </>
+          )}
+        </div>
+      )}
+
+      {sel.size>0 && (
+        <div className="selbar">
+          <span className="txt">{sel.size} in digest</span>
+          <div className="grp">
+            <button onClick={()=>setSel(new Set())}>Annulla</button>
+            <button className="go" onClick={copyDigest}>Copia digest →</button>
+          </div>
+        </div>
+      )}
+
+      {panel && (
+        <>
+          <div className="backdrop" onClick={()=>setPanel(null)}></div>
+          <div className="panel">
+            <header><div><div className="lbl">Pronto per Claude</div><h3>{panel.title}</h3></div><button className="x" onClick={()=>setPanel(null)}>×</button></header>
+            <div className="content">
+              <p className="hintline">Testo negli appunti. Apri Claude e incolla (Ctrl/Cmd+V). Se la copia non è partita, selezionalo dal riquadro.</p>
+              <div className="promptbox">{panel.text}</div>
+            </div>
+            <div className="foot">
+              <button onClick={recopy}>Copia di nuovo</button>
+              <button className="go" onClick={()=>window.open(CLAUDE_URL,"_blank","noopener")}>Apri Claude ↗</button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {settings && <Settings feeds={feeds} widgets={widgets} onClose={()=>setSettings(false)}
+        onSave={(nf,nw)=>{
+          setFeeds(nf); localStorage.setItem(LS.feeds,JSON.stringify(nf));
+          setWidgets(nw); localStorage.setItem(LS.widgets,JSON.stringify(nw));
+          try{sessionStorage.removeItem("rassegna_wcache");}catch(e){}
+          setSettings(false);
+        }}/>}
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+function Settings({feeds,widgets,onClose,onSave}){
+  const toText=obj=>Object.entries(obj).map(([id,g])=>`[${g.label}]\n`+g.urls.join("\n")).join("\n\n");
+  const [txt,setTxt]=useState(()=>toText(feeds));
+  const [wtxt,setWtxt]=useState(()=>widgetsToText(widgets));
+  const [testing,setTesting]=useState(false);
+  const [res,setRes]=useState(null);
+  const runTest=async()=>{ setTesting(true); setRes(null); try{ setRes(await testProxies()); }catch(e){} setTesting(false); };
+
+  const parse=(t)=>{
+    const out={};let cur=null;
+    (t||txt).split("\n").forEach(line=>{const l=line.trim();if(!l)return;const m=l.match(/^\[(.+)\]$/);
+      if(m){const label=m[1].trim();const id=label.toLowerCase().replace(/[^a-z0-9]+/g,"").slice(0,20)||("t"+Object.keys(out).length);cur=id;out[id]={label,urls:[]};}
+      else if(cur&&/^https?:\/\//.test(l)){out[cur].urls.push(l);}});
+    return out;
+  };
+  const current=parse(txt);
+  const activeLabels=new Set(Object.values(current).map(g=>g.label.toLowerCase()));
+  const isOn=c=>activeLabels.has(c.label.toLowerCase());
+
+  const toggle=(c)=>{
+    if(isOn(c)){
+      const next={}; Object.entries(current).forEach(([id,g])=>{ if(g.label.toLowerCase()!==c.label.toLowerCase()) next[id]=g; });
+      setTxt(toText(next));
+    } else {
+      setTxt(t=>(t.trim()?t.trim()+"\n\n":"")+`[${c.label}]\n`+c.urls.join("\n"));
+    }
+  };
+
+  const save=()=>{ const o=parse(txt); onSave(Object.keys(o).length?o:feeds, parseWidgets(wtxt)); };
+
+  return (
+    <>
+      <div className="backdrop" onClick={onClose}></div>
+      <div className="panel">
+        <header><div><div className="lbl">Impostazioni</div><h3>Sezioni e fonti</h3></div><button className="x" onClick={onClose}>×</button></header>
+        <div className="content set">
+          <div className="setlbl">Macroaree</div>
+          <p className="hint">Clicca per aggiungere o togliere. Quelle accese finiscono nella barra in alto.</p>
+          <div className="cat">
+            {CATALOG.map(c=>(
+              <button key={c.id} className={"chip"+(isOn(c)?" on":"")} onClick={()=>toggle(c)}>
+                {isOn(c)?"✓ ":"+ "}{c.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="setlbl">Diagnostica</div>
+          <p className="hint">Se vedi "feed ko", i proxy pubblici stanno rifiutando le richieste. Prova quali rispondono adesso.</p>
+          <button className="ib" style={{width:"100%",justifyContent:"center",padding:"9px"}} disabled={testing} onClick={runTest}>
+            {testing?"Provo…":"Testa i proxy"}
+          </button>
+          <button className="ib" style={{width:"100%",justifyContent:"center",padding:"9px",marginTop:8}}
+            onClick={()=>{ ["rassegna_cache","rassegna_proxy_name","rassegna_proxy_ok"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+              try{sessionStorage.clear()}catch(e){} location.reload(true); }}>
+            Svuota cache e ricarica
+          </button>
+          {res && <div className="hint" style={{marginTop:10}}>
+            {res.map(r=>(<div key={r.i}>{r.ok?"✅":"❌"} {r.name} <span style={{opacity:.6}}>({r.ms}ms{r.why?" — "+r.why:""})</span></div>))}
+            <div style={{marginTop:8}}>Test su ANSA. Se il tuo Worker è ✅, sei a posto: le testate che restano ko bloccano di loro.</div>
+          </div>}
+
+          <div className="setlbl">Nastro in alto</div>
+          <p className="hint">Una scheda per riga: <code>quote SIMBOLO Etichetta</code> · <code>topic Argomento</code> · <code>weather Città</code>.<br/>
+          Simboli borsa (Stooq): <code>^spx</code> S&amp;P 500, <code>^ndq</code> Nasdaq, <code>^dax</code> DAX, <code>eurusd</code>, <code>btcusd</code>, <code>xauusd</code> oro. Per un titolo: <code>enel.it</code>, <code>aapl.us</code>.</p>
+          <textarea style={{minHeight:120}} value={wtxt} onChange={e=>setWtxt(e.target.value)} spellCheck="false"></textarea>
+          <button className="ib" style={{width:"100%",justifyContent:"center",padding:"8px",marginTop:8}}
+            onClick={()=>setWtxt(widgetsToText(DEFAULT_WIDGETS))}>Ripristina nastro predefinito</button>
+
+          <div className="setlbl">Fonti (avanzato)</div>
+          <p className="hint">L'ordine qui sotto è l'ordine delle sezioni. Una sezione per <code>[Nome]</code>, poi un URL RSS per riga. Puoi crearne di tue.</p>
+          <textarea value={txt} onChange={e=>setTxt(e.target.value)} spellCheck="false"></textarea>
+          <button className="save" onClick={save}>Salva e aggiorna</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
