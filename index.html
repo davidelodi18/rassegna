@@ -270,7 +270,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v18 · 10-07";
+const BUILD = "v19 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -301,10 +301,15 @@ const MAX_READ=600;
 
 const DEFAULT_FEEDS={
   economia:{ label:"Economia", urls:[
+    "https://www.ilsole24ore.com/rss/economia.xml",
     "https://www.ansa.it/sito/notizie/economia/economia_rss.xml",
     "https://www.repubblica.it/rss/economia/rss2.0.xml",
   ]},
+  finanza:{ label:"Finanza", urls:[
+    "https://www.ilsole24ore.com/rss/finanza.xml",
+  ]},
   geopolitica:{ label:"Geopolitica", urls:[
+    "https://www.ilsole24ore.com/rss/mondo.xml",
     "https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml",
     "https://www.repubblica.it/rss/esteri/rss2.0.xml",
   ]},
@@ -334,13 +339,14 @@ const DEFAULT_FEEDS={
 /* Macroaree pronte: si attivano/disattivano da ⚙.
    Per le sezioni di nicchia uso le ricerche di Google News: non hanno URL che spariscono. */
 const CATALOG=[
-  {id:"economia",label:"Economia",urls:["https://www.ansa.it/sito/notizie/economia/economia_rss.xml","https://www.repubblica.it/rss/economia/rss2.0.xml"]},
-  {id:"geopolitica",label:"Geopolitica",urls:["https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml","https://www.repubblica.it/rss/esteri/rss2.0.xml"]},
+  {id:"economia",label:"Economia",urls:["https://www.ilsole24ore.com/rss/economia.xml","https://www.ansa.it/sito/notizie/economia/economia_rss.xml","https://www.repubblica.it/rss/economia/rss2.0.xml"]},
+  {id:"finanza",label:"Finanza",urls:["https://www.ilsole24ore.com/rss/finanza.xml"]},
+  {id:"geopolitica",label:"Geopolitica",urls:["https://www.ilsole24ore.com/rss/mondo.xml","https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml","https://www.repubblica.it/rss/esteri/rss2.0.xml"]},
   {id:"sport",label:"Sport",urls:["https://www.ansa.it/sito/notizie/sport/sport_rss.xml","https://www.ansa.it/sito/notizie/sport/calcio/calcio_rss.xml"]},
   {id:"tech",label:"Tech & AI",urls:["https://www.theverge.com/rss/index.xml","https://techcrunch.com/feed/","https://hnrss.org/frontpage"]},
   {id:"cultura",label:"Cultura",urls:["https://www.ansa.it/sito/notizie/cultura/cultura_rss.xml","https://www.repubblica.it/rss/spettacoli_e_cultura/rss2.0.xml"]},
   {id:"scienza",label:"Scienza",urls:["https://www.sciencedaily.com/rss/top/science.xml",G("scienza ricerca")]},
-  {id:"italia",label:"Italia",urls:["https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml","https://www.repubblica.it/rss/homepage/rss2.0.xml"]},
+  {id:"italia",label:"Italia",urls:["https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml","https://www.ilsole24ore.com/rss/italia.xml","https://www.repubblica.it/rss/homepage/rss2.0.xml"]},
   {id:"politica",label:"Politica",urls:["https://www.ansa.it/sito/notizie/politica/politica_rss.xml","https://www.repubblica.it/rss/politica/rss2.0.xml"]},
   {id:"cronaca",label:"Cronaca",urls:["https://www.ansa.it/sito/notizie/cronaca/cronaca_rss.xml","https://www.repubblica.it/rss/cronaca/rss2.0.xml"]},
   {id:"libri",label:"Libri",urls:[G("libri recensioni editoria")]},
