@@ -270,7 +270,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v19 · 10-07";
+const BUILD = "v20 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -1258,6 +1258,10 @@ function Settings({feeds,widgets,onClose,onSave}){
           <div className="setlbl">Fonti (avanzato)</div>
           <p className="hint">L'ordine qui sotto è l'ordine delle sezioni. Una sezione per <code>[Nome]</code>, poi un URL RSS per riga. Puoi crearne di tue.</p>
           <textarea value={txt} onChange={e=>setTxt(e.target.value)} spellCheck="false"></textarea>
+          <button className="ib" style={{width:"100%",justifyContent:"center",padding:"8px",marginTop:8}}
+            onClick={()=>{ if(confirm("Rimettere le fonti predefinite (con Il Sole 24 Ore)? Le tue modifiche alle fonti verranno sostituite.")) setTxt(toText(DEFAULT_FEEDS)); }}>
+            Ripristina fonti predefinite (con Il Sole)
+          </button>
           <button className="save" onClick={save}>Salva e aggiorna</button>
         </div>
       </div>
