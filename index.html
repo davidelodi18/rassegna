@@ -163,6 +163,11 @@
   .secview .top{grid-template-columns:1fr;}
   .secview .lead{border-right:none;padding-right:0;}
 
+  .searchbar{display:flex;align-items:center;gap:8px;border:1px solid var(--rule2);border-radius:8px;padding:2px 6px 2px 12px;margin:14px 0 6px;background:var(--card);}
+  .searchbar input{flex:1;border:none;background:none;outline:none;color:var(--ink);font-family:'Newsreader',serif;font-size:19px;padding:10px 0;}
+  .searchbar input::placeholder{color:var(--faint);font-style:italic;}
+  .searchbar .clr{border:none;background:none;font-size:22px;color:var(--muted);line-height:1;padding:4px 8px;}
+  .searchmeta{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
   .savedbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 0;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
   .savedbar .r{display:flex;gap:8px;}
 
@@ -270,7 +275,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v21 · 10-07";
+const BUILD = "v22 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -283,8 +288,10 @@ const PROXIES=[
 const PROXY_PICK="rassegna_proxy_name";
 
 const CLAUDE_URL="https://claude.ai/new";
-const LS={feeds:"rassegna_feeds_v2", read:"rassegna_read", saved:"rassegna_saved", theme:"rassegna_theme", cache:"rassegna_cache", widgets:"rassegna_widgets"};
+const LS={feeds:"rassegna_feeds_v2", read:"rassegna_read", saved:"rassegna_saved", theme:"rassegna_theme", cache:"rassegna_cache", widgets:"rassegna_widgets", archive:"rassegna_archive"};
 const CACHE_TTL=10*60*1000;   // 10 minuti: sotto questa soglia non ricarico nulla
+const ARCH_DAYS=2;            // giorni conservati nell'archivio ricercabile
+const ARCH_MAX_DAY=800;       // tetto per giorno (limite 1MB/doc di Firestore)
 const WIDGET_TTL=5*60*1000;
 
 const DEFAULT_WIDGETS=[
@@ -631,6 +638,17 @@ function widgetsToText(ws){
 
 function ser(a){return {...a,date:a.date?a.date.toISOString():null};}
 function deser(a){return {...a,date:a.date?new Date(a.date):null};}
+function dayKey(d){ d=d||new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function slimArt(a){ return {t:a.title,l:a.link,s:(a.snippet||"").slice(0,200),src:a.source||"",tp:a.topic||"",d:a.date?(a.date instanceof Date?a.date.toISOString():a.date):null}; }
+function fatArt(x){ return {title:x.t,link:x.l,snippet:x.s,source:x.src,topic:x.tp,date:x.d?new Date(x.d):null,img:null}; }
+function readArchive(){ try{ return JSON.parse(localStorage.getItem(LS.archive))||{}; }catch(e){ return {}; } }
+function writeArchive(obj){ try{ localStorage.setItem(LS.archive,JSON.stringify(obj)); }catch(e){} }
+function pruneArchive(obj){
+  const keep=[]; for(let i=0;i<ARCH_DAYS;i++){ const d=new Date(); d.setDate(d.getDate()-i); keep.push(dayKey(d)); }
+  const out={}; keep.forEach(k=>{ if(obj[k]) out[k]=obj[k]; }); return out;
+}
+function normTxt(t){ return (t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+
 function readCache(){
   try{ const c=JSON.parse(localStorage.getItem(LS.cache)); if(!c||!c.articles) return null;
        return {at:c.at, articles:c.articles.map(deser)}; }catch(e){ return null; }
@@ -717,6 +735,10 @@ function App(){
   const [feeds,setFeeds]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.feeds))||DEFAULT_FEEDS}catch{return DEFAULT_FEEDS}});
   const [read,setRead]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem(LS.read))||[])}catch{return new Set()}});
   const [saved,setSaved]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.saved))||[]}catch{return []}});
+  const [archive,setArchive]=useState(()=>pruneArchive(readArchive()));
+  const [query,setQuery]=useState("");
+  const archiveRef=useRef(archive); useEffect(()=>{archiveRef.current=archive;},[archive]);
+  const lastArch=useRef("");
   const [widgets,setWidgets]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS.widgets))||DEFAULT_WIDGETS}catch{return DEFAULT_WIDGETS}});
   const [theme,setTheme]=useState(()=>localStorage.getItem(LS.theme)|| (window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"night":"day"));
 
@@ -822,6 +844,34 @@ function App(){
       .then(res=>{ if(res&&res.user) flash("Collegato — i salvati ti seguono"); })
       .catch(e=>{ console.error("[auth-redirect]",e.code,e.message); });
   },[]); // eslint-disable-line
+
+  const pushArchive=useCallback(async(k,items)=>{
+    if(!FB||!FB.auth.currentUser) return;
+    const sig=k+":"+items.length; if(sig===lastArch.current) return; lastArch.current=sig;
+    try{ await FB.db.collection("rassegna").doc(FB.auth.currentUser.uid)
+      .collection("archive").doc(k).set({day:k,items,updatedAt:Date.now()}); }catch(e){ console.warn("pushArchive",e.message); }
+  },[]);
+  // al login tiro giù l'archivio degli ultimi giorni una volta sola (nessun listener)
+  useEffect(()=>{
+    if(!FB||!user) return;
+    (async()=>{
+      try{
+        const keys=[]; for(let i=0;i<ARCH_DAYS;i++){ const d=new Date(); d.setDate(d.getDate()-i); keys.push(dayKey(d)); }
+        const merged={...archiveRef.current};
+        for(const k of keys){
+          const snap=await FB.db.collection("rassegna").doc(user.uid).collection("archive").doc(k).get();
+          if(snap.exists){
+            const remote=snap.data().items||[];
+            const local=merged[k]||[];
+            const seen=new Set(local.map(x=>x.l));
+            merged[k]=[...local,...remote.filter(x=>!seen.has(x.l))].slice(0,ARCH_MAX_DAY);
+          }
+        }
+        const pruned=pruneArchive(merged);
+        setArchive(pruned); writeArchive(pruned);
+      }catch(e){ console.warn("pull archivio",e.message); }
+    })();
+  },[user]); // eslint-disable-line
 
   const signIn=async()=>{
     if(!FB){ flash("Firebase non configurato"); return; }
@@ -1005,7 +1055,22 @@ function App(){
     const sections=order.map(t=>({t,label:feeds[t]?.label,items:articles.filter(a=>a.topic===t&&!used.has(a.link)).slice(0,6)})).filter(s=>s.items.length);
     return {lead,aside,sections};
   },[articles,feeds]);
-  const sectionArts=useMemo(()=>(tab==="all"||tab==="saved")?[]:articles.filter(a=>a.topic===tab),[articles,tab]);
+  const sectionArts=useMemo(()=>(tab==="all"||tab==="saved"||tab==="search")?[]:articles.filter(a=>a.topic===tab),[articles,tab]);
+  const archiveCount=useMemo(()=>Object.values(archive).reduce((n,a)=>n+a.length,0),[archive]);
+  const results=useMemo(()=>{
+    const q=normTxt(query).trim(); if(q.length<2) return [];
+    const words=q.split(/\s+/);
+    const pool=new Map();
+    articles.forEach(a=>pool.set(a.link,a));
+    Object.values(archive).forEach(list=>list.forEach(x=>{ if(!pool.has(x.l)) pool.set(x.l,fatArt(x)); }));
+    const hits=[];
+    for(const a of pool.values()){
+      const hay=normTxt(a.title+" "+(a.snippet||"")+" "+(a.source||""));
+      if(words.every(w=>hay.includes(w))) hits.push(a);
+    }
+    hits.sort((a,b)=>(b.date?.getTime()||0)-(a.date?.getTime()||0));
+    return hits.slice(0,120);
+  },[query,archive,articles]);
 
   return (
     <div className="wrap">
@@ -1023,6 +1088,7 @@ function App(){
       <div className="secbar">
         <button className={tab==="all"?"active":""} onClick={()=>setTab("all")}>Prima pagina</button>
         <button className={tab==="saved"?"active":""} onClick={()=>setTab("saved")}>★ Da leggere{saved.length>0&&<span className="n">{saved.length}</span>}</button>
+        <button className={tab==="search"?"active":""} onClick={()=>setTab("search")}>⌕ Cerca</button>
         {order.map(t=>(
           <button key={t} className={tab===t?"active":""} onClick={()=>setTab(t)}>{feeds[t].label}<span className="n">{counts[t]||0}</span></button>
         ))}
@@ -1145,7 +1211,30 @@ function App(){
         </div>
       )}
 
-      {tab!=="all" && tab!=="saved" && (
+      {tab==="search" && (
+        <div className="secview">
+          <div className="searchbar">
+            <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
+              placeholder="Cerca tra le notizie salvate…" spellCheck="false" />
+            {query && <button className="clr" onClick={()=>setQuery("")}>×</button>}
+          </div>
+          <div className="searchmeta">
+            {query.trim().length<2
+              ? `Archivio: ${archiveCount} notizie degli ultimi ${ARCH_DAYS} giorni`
+              : `${results.length} risultati per “${query.trim()}”`}
+          </div>
+          {query.trim().length>=2 && results.length===0 && (
+            <div className="empty"><b>Nessun risultato</b>La ricerca guarda solo le notizie che la Rassegna ha già visto. Prova un'altra parola o tieni l'app aperta più spesso.</div>
+          )}
+          {results.length>0 && (
+            <div className="section" style={{borderTop:"2px solid var(--ink)",paddingTop:18}}>
+              <div className="cols c3">{results.map(a=><Col key={a.link} a={a}/>)}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab!=="all" && tab!=="saved" && tab!=="search" && (
         <div className="secview">
           {!loading && sectionArts.length===0 && <div className="empty"><b>Sezione vuota</b>Nessuna notizia qui adesso.</div>}
           {sectionArts.length>0 && (
