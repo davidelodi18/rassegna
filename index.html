@@ -275,7 +275,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v22 · 10-07";
+const BUILD = "v23 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -896,11 +896,11 @@ function App(){
 
   /* ---------- feeds ---------- */
   const load=useCallback(async(force)=>{
-    // cache fresca: non ricarico niente
     const c=readCache();
     if(!force && c && Date.now()-c.at < CACHE_TTL && c.articles.length){
       setArticles(c.articles); setUpdated(new Date(c.at)); return;
     }
+    const t0=performance.now();
     setLoading(true); setFailed([]); setFresh(0);
     const jobs=[]; Object.entries(feeds).forEach(([tid,g])=>g.urls.forEach(u=>jobs.push({tid,u})));
     const fails=[],all=[];
@@ -933,16 +933,16 @@ function App(){
         let done=false, lastWhy=null;
         for(let attempt=0;attempt<2&&!done;attempt++){
           try{
-            const items=parseFeed(await proxyGet(j.u, attempt===0?7000:11000), j.tid);
+            const items=parseFeed(await proxyGet(j.u, attempt===0?4500:8000), j.tid);
             if(!items.length) throw new Error("nessun articolo");
             all.push(...items); done=true; schedule();
           }
-          catch(e){ lastWhy=e.message||"errore"; if(attempt===0) await new Promise(r=>setTimeout(r,400)); }
+          catch(e){ lastWhy=e.message||"errore"; if(attempt===0) await new Promise(r=>setTimeout(r,250)); }
         }
         if(!done) fails.push({url:j.u, topic:j.tid, why:lastWhy||"errore"});
       }
     };
-    await Promise.all([worker(),worker(),worker(),worker(),worker()]);
+    await Promise.all(Array.from({length:8},()=>worker()));
 
     const dd=dedupeSort(all);
     if(dd.length){
@@ -951,6 +951,7 @@ function App(){
       setArticles(merged);
       writeCache(merged);
       setFresh(dd.filter(a=>!prevLinks.has(a.link)).length);
+      console.log("%c[Rassegna] "+dd.length+" notizie in "+Math.round(performance.now()-t0)+"ms · "+fails.length+" feed ko","color:#8A281C;font-weight:bold");
     } else {
       // tutto fallito: resto su quello che c'era, senza schermata vuota
       setArticles(prev);
