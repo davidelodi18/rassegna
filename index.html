@@ -791,6 +791,7 @@ function App(){
       if(mr.size!==read.size){ setRead(mr); localStorage.setItem(LS.read,JSON.stringify([...mr].slice(-MAX_READ))); }
 
       if(d.feeds&&Object.keys(d.feeds).length&&JSON.stringify(d.feeds)!==JSON.stringify(feeds)){
+        quietFeeds.current=true;   // viene dal cloud: non far partire il download
         setFeeds(d.feeds); localStorage.setItem(LS.feeds,JSON.stringify(d.feeds));
       }
       if(Array.isArray(d.widgets)&&d.widgets.length&&JSON.stringify(d.widgets)!==JSON.stringify(widgets)){
@@ -895,7 +896,8 @@ function App(){
   const signOut=async()=>{ await FB.auth.signOut(); flash("Scollegato — resti in locale"); };
 
   /* ---------- feeds ---------- */
-  const load=useCallback(async(force)=>{
+  const load=useCallback(async(force,reason)=>{
+    console.log("%c[Rassegna] load() chiamato — motivo:","color:#8A281C;font-weight:bold", reason||"?", "force:", !!force);
     const c=readCache();
     if(!force && c && c.articles.length){   // senza "force" resto sulla cache, non scarico
       setArticles(c.articles); setUpdated(new Date(c.at)); return;
@@ -953,15 +955,20 @@ function App(){
   },[feeds]);
   const feedsKey=useMemo(()=>JSON.stringify(feeds),[feeds]);
   const first=useRef(true);
+  const quietFeeds=useRef(false);   // true = le fonti sono cambiate dal cloud: adotta senza scaricare
   useEffect(()=>{
     if(first.current){
       // Avvio: SOLO cache, mai un download automatico. Se è vuota, mostro l'invito ad Aggiorna.
       first.current=false;
       const c=readCache();
       if(c && c.articles && c.articles.length){ setArticles(c.articles); setUpdated(new Date(c.at)); }
+    }else if(quietFeeds.current){
+      // Le fonti sono arrivate da Firestore: le adotto in silenzio, senza scaricare.
+      quietFeeds.current=false;
+      console.log("[Rassegna] fonti aggiornate dal cloud — nessun download automatico");
     }else{
-      // Cambio fonti in ⚙: qui sì, ricarico.
-      load(true);
+      // Fonti cambiate da TE in ⚙: qui sì, ricarico.
+      load(true,"cambio-fonti");
     }
   },[feedsKey]); // eslint-disable-line
   useEffect(()=>{window.scrollTo({top:0});},[tab]);
@@ -1078,6 +1085,7 @@ function App(){
 
   return (
     <div className="wrap">
+      <div style={{position:"fixed",top:2,right:6,zIndex:99,fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"var(--faint)",opacity:.6}}>{BUILD}</div>
       <div className="plate">
         <div className="top">
           <span>Edizione del {now.toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"})}</span>
@@ -1119,7 +1127,7 @@ function App(){
               {user.photoURL&&<img className="avat" src={user.photoURL} alt=""/>}Esci
             </button>
           )}
-          <button className={"ib"+(loading?" spin":"")} onClick={()=>load(true)}>
+          <button className={"ib"+(loading?" spin":"")} onClick={()=>load(true,"click-aggiorna")}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>{loading?"…":"Aggiorna"}
           </button>
           <button className="ib" onClick={()=>setTheme(t=>t==="day"?"night":"day")}>{theme==="day"?"☾ Sera":"☀ Mattina"}</button>
