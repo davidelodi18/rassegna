@@ -44,7 +44,7 @@
     scroll-snap-type:x proximity;}
   .tk{scroll-snap-align:start;}
   .ticker::-webkit-scrollbar{display:none;}
-  .tk{flex:0 0 auto;min-width:150px;max-width:280px;padding:10px 18px;border-right:1px solid var(--rule);display:flex;flex-direction:column;justify-content:center;gap:3px;}
+  .tk{flex:0 0 auto;min-width:150px;max-width:280px;padding:10px 18px;border-right:1px solid var(--rule);display:flex;flex-direction:column;justify-content:center;gap:3px;height:64px;box-sizing:border-box;overflow:hidden;}
   .tk:first-child{padding-left:2px;}
   .tk:last-child{border-right:none;}
   .tk .lb{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);white-space:nowrap;}
@@ -58,14 +58,15 @@
   .nxt:hover{color:var(--stamp);}
   .tk .hd:hover{text-decoration:underline;text-underline-offset:2px;}
   .tk.wide{min-width:230px;}
+  .tk .hd{max-height:34px;}
   .tk .err{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--faint);}
   .tk .sk{height:17px;width:70%;background:var(--rule);border-radius:2px;opacity:.4;}
   @media (max-width:820px){
     .tickerwrap::after{display:none;}
     .ticker{flex-wrap:wrap;overflow-x:visible;}
-    .tk{flex:1 1 46%;min-width:0;max-width:none;padding:9px 12px;border-bottom:1px solid var(--rule);}
+    .tk{flex:1 1 46%;min-width:0;max-width:none;padding:9px 12px;border-bottom:1px solid var(--rule);height:60px;}
     .tk:nth-child(2n){border-right:none;}
-    .tk.wide{flex:1 1 100%;border-right:none;}
+    .tk.wide{flex:1 1 100%;border-right:none;height:64px;}
     .tk .vl{font-size:16px;}
     .tk .hd{-webkit-line-clamp:2;}
   }
@@ -672,19 +673,34 @@ function Ticker({widgets}){
     let dead=false;
     const key="rassegna_wcache";
     let cache={}; try{cache=JSON.parse(sessionStorage.getItem(key))||{};}catch(e){}
-    widgets.forEach(async(w,i)=>{
-      const id=w.type+":"+w.arg;
-      if(cache[id] && Date.now()-cache[id].at<WIDGET_TTL){ setData(d=>({...d,[id]:cache[id].v})); return; }
-      try{
-        let v;
-        if(w.type==="quote") v=await fetchQuote(w.arg);
-        else if(w.type==="topic") v=await fetchTopic(w.arg);
-        else v=await fetchWeather(w.arg);
-        if(dead) return;
-        setData(d=>({...d,[id]:v}));
-        cache[id]={at:Date.now(),v}; try{sessionStorage.setItem(key,JSON.stringify(cache));}catch(e){}
-      }catch(e){ console.warn("[widget]",w.type,w.arg,e.message||e); if(!dead) setData(d=>({...d,[id]:{err:true,why:e.message||"errore"}})); }
-    });
+
+    // se ho già tutto in cache, mostro subito senza attese
+    const ids=widgets.map(w=>w.type+":"+w.arg);
+    const allCached=ids.every(id=>cache[id]&&Date.now()-cache[id].at<WIDGET_TTL);
+    if(allCached){
+      const d={}; ids.forEach(id=>d[id]=cache[id].v); setData(d); return;
+    }
+
+    (async()=>{
+      // scarico tutte le schede in parallelo e aspetto che siano pronte:
+      // un solo aggiornamento, così la fascia non cresce a scatti mentre leggi
+      const out={};
+      await Promise.all(widgets.map(async w=>{
+        const id=w.type+":"+w.arg;
+        if(cache[id] && Date.now()-cache[id].at<WIDGET_TTL){ out[id]=cache[id].v; return; }
+        try{
+          let v;
+          if(w.type==="quote") v=await fetchQuote(w.arg);
+          else if(w.type==="topic") v=await fetchTopic(w.arg);
+          else v=await fetchWeather(w.arg);
+          out[id]=v; cache[id]={at:Date.now(),v};
+        }catch(e){ console.warn("[widget]",w.type,w.arg,e.message||e); out[id]={err:true,why:e.message||"errore"}; }
+      }));
+      if(dead) return;
+      setData(out);
+      try{sessionStorage.setItem(key,JSON.stringify(cache));}catch(e){}
+    })();
+
     return ()=>{dead=true;};
   },[widgets]);
 
