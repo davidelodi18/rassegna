@@ -275,7 +275,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v23 · 10-07";
+const BUILD = "v25 · 10-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -897,7 +897,7 @@ function App(){
   /* ---------- feeds ---------- */
   const load=useCallback(async(force)=>{
     const c=readCache();
-    if(!force && c && Date.now()-c.at < CACHE_TTL && c.articles.length){
+    if(!force && c && c.articles.length){   // senza "force" resto sulla cache, non scarico
       setArticles(c.articles); setUpdated(new Date(c.at)); return;
     }
     const t0=performance.now();
@@ -916,16 +916,9 @@ function App(){
       return dd;
     };
 
-    // Se la pagina è già piena, NON tocco nulla finché non ho finito: niente titoli che
-    // scivolano mentre leggi. Disegno progressivo solo al primo caricamento (schermo vuoto).
-    const firstLoad = prev.length===0;
-    let pending=false;
-    const flush=()=>{
-      pending=false;
-      if(firstLoad) setArticles(dedupeSort(all));
-    };
-    const schedule=()=>{ if(!firstLoad) return; if(pending) return; pending=true; setTimeout(flush,220); };
-
+    // Nessun disegno progressivo: la pagina resta ferma su ciò che stai leggendo
+    // finché il download non è COMPLETO, poi si aggiorna una sola volta.
+    const schedule=()=>{};   // no-op: non ridisegno durante il caricamento
     let cursor=0;
     const worker=async()=>{
       while(cursor<jobs.length){
@@ -960,7 +953,17 @@ function App(){
   },[feeds]);
   const feedsKey=useMemo(()=>JSON.stringify(feeds),[feeds]);
   const first=useRef(true);
-  useEffect(()=>{ load(!first.current); first.current=false; },[feedsKey]); // eslint-disable-line
+  useEffect(()=>{
+    if(first.current){
+      // Avvio: SOLO cache, mai un download automatico. Se è vuota, mostro l'invito ad Aggiorna.
+      first.current=false;
+      const c=readCache();
+      if(c && c.articles && c.articles.length){ setArticles(c.articles); setUpdated(new Date(c.at)); }
+    }else{
+      // Cambio fonti in ⚙: qui sì, ricarico.
+      load(true);
+    }
+  },[feedsKey]); // eslint-disable-line
   useEffect(()=>{window.scrollTo({top:0});},[tab]);
 
   const counts=useMemo(()=>{const c={all:articles.length};order.forEach(t=>c[t]=articles.filter(a=>a.topic===t).length);return c;},[articles,feeds]);
@@ -1098,7 +1101,9 @@ function App(){
       <div className="utility">
         <span className="chips">
           {loading && <span className="chip-s live">aggiorno…</span>}
-          {!loading && updated && <span className="chip-s">{updated.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})}</span>}
+          {!loading && updated && (()=>{ const stale=(Date.now()-updated.getTime())>30*60*1000;
+            return <span className={"chip-s"+(stale?" bad":"")} title={stale?"Notizie non recenti — premi Aggiorna":""}>
+              {stale?"↻ ":""}{updated.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})}</span>; })()}
           <span className="chip-s">{articles.length} notizie</span>
           {fresh>0 && !loading && <span className="chip-s new">{fresh} nuove</span>}
           {failed.length>0 && (
@@ -1137,7 +1142,7 @@ function App(){
 
       {tab==="all" && (
         <>
-          {!loading && !front && <div className="empty"><b>Nessuna notizia</b>Aggiorna o controlla i feed in ⚙.</div>}
+          {!loading && !front && <div className="empty"><b>Premi Aggiorna</b>Le notizie si scaricano solo quando premi la freccia ↻ in alto.</div>}
           {front && (
             <>
               <div className="top">
