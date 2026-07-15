@@ -276,7 +276,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v29 · 15-07";
+const BUILD = "v31 · 15-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -292,6 +292,7 @@ const CLAUDE_URL="https://claude.ai/new";
 const LS={feeds:"rassegna_feeds_v2", read:"rassegna_read", saved:"rassegna_saved", theme:"rassegna_theme", cache:"rassegna_cache", widgets:"rassegna_widgets", archive:"rassegna_archive"};
 const CACHE_TTL=10*60*1000;   // 10 minuti: sotto questa soglia non ricarico nulla
 const ARCH_DAYS=2;            // giorni conservati nell'archivio ricercabile
+const MAX_AGE_DAYS=7;         // niente notizie più vecchie di così
 const ARCH_MAX_DAY=800;       // tetto per giorno (limite 1MB/doc di Firestore)
 const WIDGET_TTL=5*60*1000;
 
@@ -303,8 +304,8 @@ const DEFAULT_WIDGETS=[
   {type:"topic", arg:"Serie A calcio", label:"Serie A"},
   {type:"weather", arg:"Milano", label:"Milano"},
 ];
-const G=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=it&gl=IT&ceid=IT:it`;
-const GSITE=(site,q="")=>`https://news.google.com/rss/search?q=${encodeURIComponent((q?q+" ":"")+"site:"+site)}&hl=it&gl=IT&ceid=IT:it`;
+const G=q=>`https://news.google.com/rss/search?q=${encodeURIComponent(q+" when:7d")}&hl=it&gl=IT&ceid=IT:it`;
+const GSITE=(site,q="")=>`https://news.google.com/rss/search?q=${encodeURIComponent((q?q+" ":"")+"site:"+site+" when:7d")}&hl=it&gl=IT&ceid=IT:it`;
 const GNEWS=G;
 const MAX_READ=600;
 
@@ -379,6 +380,20 @@ const CATALOG=[
   {id:"stampa",label:"La Stampa",urls:[GSITE("lastampa.it")]},
   {id:"messaggero",label:"Il Messaggero",urls:[GSITE("ilmessaggero.it")]},
   {id:"ceramica",label:"Ceramica",urls:[G("industria ceramica piastrelle Sassuolo")]},
+
+  /* --- economia internazionale (verificati) --- */
+  {id:"wsj",label:"WSJ Mercati",urls:["https://feeds.a.dj.com/rss/RSSMarketsMain.xml"]},
+  {id:"wsj_world",label:"WSJ Mondo",urls:["https://feeds.a.dj.com/rss/RSSWorldNews.xml"]},
+  {id:"nyt_biz",label:"NYT Business",urls:["https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"]},
+  {id:"nyt_eco",label:"NYT Economy",urls:["https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml"]},
+  {id:"nyt_world",label:"NYT World",urls:["https://rss.nytimes.com/services/xml/rss/nyt/World.xml"]},
+  {id:"economist",label:"The Economist",urls:["https://www.economist.com/latest/rss.xml"]},
+  {id:"economist_fin",label:"Economist Finanza",urls:["https://www.economist.com/finance-and-economics/rss.xml","https://www.economist.com/business/rss.xml"]},
+  {id:"ft",label:"Financial Times",urls:["https://www.ft.com/rss/home","https://www.ft.com/?format=rss"]},
+  {id:"bloomberg",label:"Bloomberg",urls:["https://feeds.bloomberg.com/markets/news.rss"]},
+  {id:"cnbc",label:"CNBC",urls:["https://www.cnbc.com/id/100003114/device/rss/rss.html"]},
+  {id:"marketwatch",label:"MarketWatch",urls:["https://www.marketwatch.com/rss/topstories"]},
+  {id:"macro",label:"Macro & Banche centrali",urls:[G("BCE Fed tassi inflazione"),"https://www.economist.com/finance-and-economics/rss.xml"]},
 ];
 
 /* ---------- utils ---------- */
@@ -481,7 +496,17 @@ function parseFeed(xml,topic){
     let img=null; try{ img=pickImage(it,rawDesc); }catch(e){}
     if(img && img.startsWith("http://")) img="https://"+img.slice(7);
     return {title,link:(link||"").trim(),snippet:stripHtml(rawDesc).slice(0,280),date:ds?new Date(ds):null,source:src,topic,img};
-  }).filter(a=>a.title&&a.link);
+  }).filter(a=>{
+    if(!a.title||!a.link) return false;
+    // scarto le notizie vecchie: le ricerche di Google, se il tema è di nicchia,
+    // riempiono con articoli di anni fa. Senza data la tengo (di solito è roba fresca).
+    if(a.date && !isNaN(a.date)){
+      const giorni=(Date.now()-a.date.getTime())/86400000;
+      if(giorni>MAX_AGE_DAYS) return false;
+      if(giorni< -1) return false;     // date nel futuro = feed sballato
+    }
+    return true;
+  });
 }
 async function fetchArticleText(url){
   try{
