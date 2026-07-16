@@ -194,6 +194,21 @@
   .panel .foot button{flex:1;border-radius:6px;padding:11px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.05em;border:1px solid var(--ink);background:none;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:6px;}
   .panel .foot button.go{background:var(--stamp);border-color:var(--stamp);color:#fff;}
 
+  .ordlist{border:1px solid var(--rule);border-radius:8px;overflow:hidden;margin:4px 0 18px;}
+  .ord{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 8px;border-bottom:1px solid var(--rule);background:var(--paper);transition:background .12s,transform .12s;}
+  .ord .nm{flex:1;}
+  .ord .grip{cursor:grab;color:var(--faint);font-size:16px;padding:6px 6px;touch-action:none;user-select:none;letter-spacing:-2px;}
+  .ord .grip:active{cursor:grabbing;color:var(--ink);}
+  .ord.dragging{opacity:.45;background:var(--card);}
+  .ord.over{box-shadow:inset 0 2px 0 var(--stamp);background:var(--card);}
+  .ord:last-child{border-bottom:none;}
+  .ord .nm{font-family:'Newsreader',serif;font-size:15px;color:var(--ink);}
+  .ord .btns{display:flex;gap:4px;}
+  .ord .btns button{width:30px;height:30px;border:1px solid var(--rule);border-radius:6px;background:none;color:var(--ink);font-size:13px;line-height:1;}
+  .ord .btns button:hover:not(:disabled){border-color:var(--ink);}
+  .ord .btns button:disabled{opacity:.3;cursor:default;}
+  .ord .btns .rm{color:var(--stamp);border-color:var(--rule);}
+  .ord .btns .rm:hover{background:var(--stamp);color:#fff;border-color:var(--stamp);}
   .cat{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 18px;}
   .chip{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
     border:1px solid var(--rule);border-radius:999px;padding:6px 12px;background:none;color:var(--muted);transition:.14s;}
@@ -276,7 +291,7 @@ const {useState,useEffect,useMemo,useCallback,useRef} = React;
    e i feed smettono di dipendere da servizi pubblici.
    Esempio: "https://rassegna-proxy.tuonome.workers.dev/?url="
    ============================================================ */
-const BUILD = "v31 · 15-07";
+const BUILD = "v33 · 15-07";
 const MY_PROXY = "https://rassegna-proxy.davide-lodi18.workers.dev/?url=";
 
 const PROXIES=[
@@ -1383,6 +1398,57 @@ function Settings({feeds,widgets,onClose,onSave}){
     }
   };
 
+  const listRef=useRef(null);
+  const [dragI,setDragI]=useState(null);
+  const [overI,setOverI]=useState(null);
+  const dragState=useRef(null);
+
+  const startDrag=(e,i)=>{
+    e.preventDefault();
+    const rows=[...listRef.current.querySelectorAll(".ord")];
+    dragState.current={ order:Object.entries(current), from:i,
+      centers:rows.map(r=>{ const b=r.getBoundingClientRect(); return b.top+b.height/2; }) };
+    setDragI(i); setOverI(i);
+    e.target.setPointerCapture&&e.target.setPointerCapture(e.pointerId);
+  };
+  const onMove=(e)=>{
+    if(!dragState.current) return;
+    const y=e.clientY!=null?e.clientY:(e.touches&&e.touches[0]?e.touches[0].clientY:0);
+    const c=dragState.current.centers;
+    let k=0; while(k<c.length-1 && y>c[k]) k++;
+    if(y<c[0]) k=0;
+    setOverI(k);
+  };
+  const endDrag=()=>{
+    const st=dragState.current;
+    if(st && overI!=null && overI!==st.from){
+      const ent=[...st.order];
+      const [it]=ent.splice(st.from,1);
+      ent.splice(overI,0,it);
+      setTxt(toText(Object.fromEntries(ent)));
+    }
+    dragState.current=null; setDragI(null); setOverI(null);
+  };
+  useEffect(()=>{
+    if(dragI===null) return;
+    window.addEventListener("pointermove",onMove);
+    window.addEventListener("pointerup",endDrag);
+    window.addEventListener("pointercancel",endDrag);
+    return ()=>{ window.removeEventListener("pointermove",onMove);
+      window.removeEventListener("pointerup",endDrag);
+      window.removeEventListener("pointercancel",endDrag); };
+  }); // eslint-disable-line
+
+  const move=(i,dir)=>{
+    const ent=Object.entries(current); const j=i+dir;
+    if(j<0||j>=ent.length) return;
+    [ent[i],ent[j]]=[ent[j],ent[i]];
+    setTxt(toText(Object.fromEntries(ent)));
+  };
+  const removeAt=(id)=>{
+    const next={}; Object.entries(current).forEach(([k,v])=>{ if(k!==id) next[k]=v; });
+    setTxt(toText(next));
+  };
   const save=()=>{ const o=parse(txt); onSave(Object.keys(o).length?o:feeds, parseWidgets(wtxt)); };
 
   return (
@@ -1391,6 +1457,24 @@ function Settings({feeds,widgets,onClose,onSave}){
       <div className="panel">
         <header><div><div className="lbl">Impostazioni</div><h3>Sezioni e fonti</h3></div><button className="x" onClick={onClose}>×</button></header>
         <div className="content set">
+          <div className="setlbl">Ordine delle sezioni</div>
+          <p className="hint">Trascina ⠿ per spostare. È l'ordine dei tab in alto e dei blocchi in prima pagina.</p>
+          <div className="ordlist" ref={listRef}>
+            {Object.entries(current).map(([id,g],i,arr)=>(
+              <div className={"ord"+(dragI===i?" dragging":"")+(overI===i&&dragI!==null&&dragI!==i?" over":"")}
+                   key={id} data-i={i}>
+                <span className="grip" onPointerDown={e=>startDrag(e,i)} title="Trascina">⠿</span>
+                <span className="nm">{g.label}</span>
+                <span className="btns">
+                  <button disabled={i===0} onClick={()=>move(i,-1)} title="Su">↑</button>
+                  <button disabled={i===arr.length-1} onClick={()=>move(i,1)} title="Giù">↓</button>
+                  <button className="rm" onClick={()=>removeAt(id)} title="Togli">×</button>
+                </span>
+              </div>
+            ))}
+            {Object.keys(current).length===0 && <div className="hint" style={{padding:"12px"}}>Nessuna sezione: accendine qualcuna qui sotto.</div>}
+          </div>
+
           <div className="setlbl">Macroaree</div>
           <p className="hint">Clicca per aggiungere o togliere. Quelle accese finiscono nella barra in alto.</p>
           <div className="cat">
